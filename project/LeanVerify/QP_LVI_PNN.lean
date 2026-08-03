@@ -283,14 +283,12 @@ theorem box_pnn_equilibrium_implies_VI {n : ℕ} {l h : Vec n} (F : Vec n → Ve
 noncomputable def discIter {n : ℕ} (P : Vec n → Vec n) (M : Matrix (Fin n) (Fin n) ℝ) (κ : Vec n)
     (β : ℝ) (y : Vec n) : Vec n := P (y - β • (M *ᵥ y + κ))
 
-/-- 线性部分压缩条件：‖I − βM‖ < 1 —— 文档 (31)「0 < β < 2/‖M‖」的算子范数形式。
-   谱界推导（对称正定 M 下 β < 2/λ_max(M) ⟹ ‖I − βM‖ < 1）依赖谱理论，见 VERIFICATION.md -/
-theorem linear_part_contraction {n : ℕ} (M : Matrix (Fin n) (Fin n) ℝ) (β : ℝ)
-    (hLin : ‖1 - β • M‖ < 1) :
-    ‖1 - β • M‖ < 1 := hLin
-
-/-- 离散迭代收敛（Banach 不动点定理）：投影非扩张 + 线性部分压缩 ⟹ 迭代收敛到不动点
-   —— 文档 (31)。不动点结合 fixed_point_implies_VI 即 LVI 解。 -/
+/-- 离散迭代收敛（Banach 不动点定理）：投影非扩张 + 线性部分压缩（‖I − βM‖ < 1，l∞ 算子范数）
+   ⟹ 迭代收敛到不动点 —— 文档 (31)。
+   注意：本处 ‖·‖ 为 l∞ 算子范数（max 行绝对和）。文档 (31) 的「0 < β < 2/‖M‖」条件
+   是对谱范数陈述的（对称正定 M 下 β < 2/λ_max(M) ⟹ 谱范数 ‖I−βM‖₂ < 1）；
+   该蕴含对 l∞ 范数不成立（见 lean-work-notes §3），谱界推导依赖谱理论，见 VERIFICATION.md。
+   不动点结合 fixed_point_implies_VI 即 LVI 解。 -/
 theorem discIter_converges {n : ℕ} (P : Vec n → Vec n) (M : Matrix (Fin n) (Fin n) ℝ) (κ : Vec n)
     (β : ℝ) (hPnonex : ∀ a b, ‖P a - P b‖ ≤ ‖a - b‖)
     (hLin : ‖1 - β • M‖ < 1) (y0 : Vec n) :
