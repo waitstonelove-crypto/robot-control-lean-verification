@@ -1,14 +1,15 @@
 # Lean 验证项目工作笔记
 
-最后更新：2026-08-04（Task 8 完成）。本文件是执行期经验与状态的"作战手册"，供后续任务与未来会话直接使用。
+最后更新：2026-08-04（**全部 17 个任务已完成**）。本文件是执行期经验与状态的"作战手册"——§2 环境实证与 §3 数学发现仍有效；权威状态见 `formula-mapping.md` 与 `VERIFICATION.md`（本文件 §1 为历史快照）。
 
-## 1. 项目状态
+## 1. 项目状态（历史快照，2026-08-04 全部完成）
 
 - 仓库：`D:\AI\lean`（git，分支 `feat/lean-verification`），lake 项目 `D:\AI\lean\project`（Lean 4.32.2 + Mathlib v4.32.2）
 - 工具链：`ELAN_HOME=D:/AI/lean/elan`；构建：`cd "D:/AI/lean/project" && "D:/AI/lean/elan/bin/lake.exe" build`
 - 提交惯例：`cd "D:/AI/lean" && git add -A && git -c user.name="wj" -c user.email="wj@local" commit -m "<msg>"`
+- **最终状态：17 任务全部完成，8663 jobs 全绿，零 sorry，唯一 axiom（Gao 2003 收敛）已文档化；最终审查结论"可交付"**
 
-### 模块与定理（截至 Task 8）
+### 模块与定理（截至 Task 17 完成）
 
 | 文件 | 内容 | 状态 |
 |---|---|---|
