@@ -42,6 +42,21 @@ theorem feasibleSet_convex {n m p : ℕ} (A : Matrix (Fin p) (Fin n) ℝ) (b : V
         rw [← add_mul, htu]
         simp
 
+/-- 框约束可行域是凸集 —— 文档 (22) 对 Ω = [l,h] -/
+theorem feasibleSetBox_convex {n : ℕ} (l h : Vec n) : Convex ℝ (feasibleSetBox l h) := by
+  rintro x hx y hy t u ht hu htu i
+  constructor
+  · calc
+      l i = t * l i + u * l i := by rw [← add_mul, htu]; simp
+      _ ≤ t * x i + u * y i := by
+        exact add_le_add (mul_le_mul_of_nonneg_left (hx i).1 ht)
+          (mul_le_mul_of_nonneg_left (hy i).1 hu)
+  · calc
+      t * x i + u * y i ≤ t * h i + u * h i := by
+        exact add_le_add (mul_le_mul_of_nonneg_left (hx i).2 ht)
+          (mul_le_mul_of_nonneg_left (hy i).2 hu)
+      _ = h i := by rw [← add_mul, htu]; simp
+
 /-- 变分不等式 VI(Ω, F)：x ∈ Ω ∧ ∀ y ∈ Ω, ⟨y − x, F(x)⟩ ≥ 0 —— 文档 (23)(24) -/
 def VI {n : ℕ} (F : Vec n → Vec n) (Ω : Set (Vec n)) (x : Vec n) : Prop :=
   x ∈ Ω ∧ ∀ y ∈ Ω, 0 ≤ inner ℝ (y - x) (F x)
