@@ -130,3 +130,56 @@ theorem eNorm_sq_eq_inner {n : ℕ} (x : Vec n) : eNorm x ^ 2 = inner ℝ x x :=
 theorem eNorm_nonneg {n : ℕ} (x : Vec n) : 0 ≤ eNorm x := by
   unfold eNorm
   exact Real.sqrt_nonneg _
+
+/-- 右伪逆 J† = Jᵀ(JJᵀ)⁻¹ —— 文档 (4) 定义（要求 JJᵀ 可逆，即 J 行满秩）。
+  注意：矩阵类型在此处拼写为 `Matrix (Fin m) (Fin n) ℝ`（与 `Mat m n` 定义相等，
+  两者可互换）。Mathlib v4.32.2 的类型类实例检索（DiscrTree）按类型表达式头部常量
+  匹配实例：以 `Mat` 为头的类型表达式找不到 Matrix 的 `HMul`/`Inv` 实例（会退化为
+  Pi 逐点乘/逐点逆或不报错地失配），因此凡涉及矩阵乘法/求逆的语句一律使用
+  `Matrix` 拼写；`Mat` 仅用于逐点运算（内积、投影等）场景。
+  可逆性假设采用 `IsUnit (J * Jᵀ)`（矩阵乘法幺半群意义），与文档 (4) 的
+  「JJᵀ 可逆」一致；需行列式形式时经 `Matrix.isUnit_iff_isUnit_det` 转换，
+  再使用 `Matrix.mul_nonsing_inv`/`Matrix.nonsing_inv_mul`。 -/
+noncomputable def rpinv {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ)
+    (_h : IsUnit (J * Jᵀ)) : Matrix (Fin n) (Fin m) ℝ :=
+  Jᵀ * (J * Jᵀ)⁻¹
+
+/-- 关键恒等式：JJ† = I_m —— 文档 (5) 第一性质。
+  展开定义后重组为 (JJᵀ)(JJᵀ)⁻¹，由 `Matrix.mul_nonsing_inv` 化简为 1。 -/
+theorem rpinv_mul_eq_one {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    J * rpinv J h = 1 := by
+  rw [rpinv, ← Matrix.mul_assoc]
+  exact Matrix.mul_nonsing_inv (J * Jᵀ) ((Matrix.isUnit_iff_isUnit_det (J * Jᵀ)).1 h)
+
+/-- MP 条件 1：JJ†J = J -/
+theorem rpinv_mul_self_mul {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    J * rpinv J h * J = J := by
+  rw [rpinv_mul_eq_one J h]
+  simp
+
+/-- MP 条件 2：J†JJ† = J† -/
+theorem rpinv_self_mul_self {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    rpinv J h * J * rpinv J h = rpinv J h := by
+  rw [Matrix.mul_assoc]
+  rw [rpinv_mul_eq_one J h]
+  simp
+
+/-- MP 条件 3：(JJ†)ᵀ = JJ† —— 由关键恒等式 JJ† = I_m 直接得出 -/
+theorem rpinv_mul_conjTranspose {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    (J * rpinv J h)ᵀ = J * rpinv J h := by
+  rw [rpinv_mul_eq_one J h]
+  simp
+
+/-- MP 条件 4：(J†J)ᵀ = J†J —— 核心是 (JJᵀ)⁻¹ 的对称性（因 JJᵀ 自身对称，
+  且 `Matrix.transpose_nonsing_inv` 给出 (A⁻¹)ᵀ = (Aᵀ)⁻¹，无条件成立） -/
+theorem rpinv_self_conjTranspose {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    (rpinv J h * J)ᵀ = rpinv J h * J := by
+  have hsym : ((J * Jᵀ)⁻¹)ᵀ = (J * Jᵀ)⁻¹ := by
+    have hJ : (J * Jᵀ)ᵀ = J * Jᵀ := by
+      rw [Matrix.transpose_mul, Matrix.transpose_transpose]
+    rw [Matrix.transpose_nonsing_inv (J * Jᵀ), hJ]
+  rw [rpinv]
+  rw [Matrix.transpose_mul]
+  rw [Matrix.transpose_mul]
+  rw [hsym, Matrix.transpose_transpose]
+  rw [← Matrix.mul_assoc]
