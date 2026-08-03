@@ -8,9 +8,16 @@ abbrev Mat (m n : ℕ) := Fin m → Fin n → ℝ
 
 /-- Vec 的欧氏内积：⟨x, y⟩ = ∑ x_i y_i —— Mathlib (v4.32.2) 对 `Fin n → ℝ` 仅提供 sup 范数，
   未提供 Inner 实例（EuclideanSpace 是 PiLp 的别名，与 `Fin n → ℝ` 不同构为定义相等），
-  此处为 Vec 补上标准欧氏内积，使文档 (30b) 中的 ⟨·,·⟩ 可直接书写。 -/
+  此处为 Vec 补上标准欧氏内积，使文档 (30b) 中的 ⟨·,·⟩ 可直接书写。
+  注意：本项目 `‖·‖`（Mathlib 默认）为 sup 范数，与欧氏内积不相容（‖x‖² = ⟨x,x⟩ 不成立）；
+  凡数学上需要欧氏范数的定理一律使用 `eNorm`。 -/
 instance instInnerVec {n : ℕ} : Inner ℝ (Vec n) where
   inner x y := ∑ i, x i * y i
+
+/-- 内积按定义展开为逐分量乘积和 —— 下游定理展开内积的通用引理 -/
+@[simp]
+theorem inner_vec_eq_sum {n : ℕ} (x y : Vec n) : inner ℝ x y = ∑ i, x i * y i := by
+  rfl
 
 /-- 框约束投影：P_Ω(y)_i = max(l_i, min(y_i, h_i)) —— 文档 (27)，论文 (30a) 的 P_V
   即逐分量截断到 [l, h]。 -/
@@ -103,3 +110,23 @@ theorem boxProj_nonexpansive {n : ℕ} {l h a b : Vec n} :
   calc
     ‖(boxProj l h a - boxProj l h b) i‖ ≤ ‖(a - b) i‖ := by simpa using hcoord i
     _ ≤ ‖a - b‖ := (pi_norm_le_iff_of_nonneg (norm_nonneg (a - b))).1 le_rfl i
+
+/-- 欧氏范数：‖x‖ₑ = sqrt(∑ x_i²)。Mathlib 对 `Fin n → ℝ` 的默认范数是 sup 范数
+  （‖x‖ = max |x_i|），而内积是欧氏内积，‖x‖² = ⟨x,x⟩ 在 sup 范数下不成立。
+  凡数学上依赖欧氏范数的定理（最小范数 (4)、配平方 (37)、VAM 展开 (24) 等）一律使用 eNorm。 -/
+noncomputable def eNorm {n : ℕ} (x : Vec n) : ℝ := Real.sqrt (∑ i, x i ^ 2)
+
+/-- eNorm 平方恒等式：‖x‖ₑ² = ⟨x, x⟩ —— 最小范数证明的根基 -/
+theorem eNorm_sq_eq_inner {n : ℕ} (x : Vec n) : eNorm x ^ 2 = inner ℝ x x := by
+  unfold eNorm
+  rw [Real.sq_sqrt]
+  · rw [inner_vec_eq_sum]
+    congr 1
+    ext i
+    ring
+  · exact Finset.sum_nonneg (fun i _ => sq_nonneg (x i))
+
+/-- eNorm 非负性 -/
+theorem eNorm_nonneg {n : ℕ} (x : Vec n) : 0 ≤ eNorm x := by
+  unfold eNorm
+  exact Real.sqrt_nonneg _
