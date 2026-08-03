@@ -120,4 +120,113 @@ theorem hFunc_max_at_mid {θl θu : ℝ} (hl : θl < θu) :
       nlinarith
     exact le_trans hineq hineq2
 
+/-- 单因子导数：h'_i(x) = (θ⁺ + θ⁻ − 2x)/(θ⁺ − θ⁻)² —— 文档 (18) 的分量形式。
+   hFunc 展开为多项式 (x−θ⁻)(θ⁺−x)/(θ⁺−θ⁻)²，分子导数为 θ⁺ + θ⁻ − 2x。 -/
+private lemma hFunc_deriv (θl θu x : ℝ) :
+    HasDerivAt (fun y : ℝ => hFunc θl θu y) ((θu + θl - 2 * x) / (θu - θl) ^ 2) x := by
+  unfold hFunc
+  have hA : HasDerivAt (fun y : ℝ => y - θl) 1 x := by
+    simpa using (hasDerivAt_id x).sub_const θl
+  have hB : HasDerivAt (fun y : ℝ => θu - y) (-1) x := by
+    simpa using (hasDerivAt_id x).const_sub θu
+  have hD : HasDerivAt (fun y : ℝ => (y - θl) * (θu - y) / (θu - θl) ^ 2)
+      ((1 * (θu - x) + (x - θl) * -1) / (θu - θl) ^ 2) x := (hA.mul hB).div_const ((θu - θl) ^ 2)
+  convert hD using 1
+  ring
+
+/-- h(θ) = ∏ h_i(θ_i) 对 θ_i 的偏导：∂h/∂θ_i = (∏_{j≠i} h_j(θ_j)) · h'_i(θ_i)
+   —— 文档 (18)。乘积法则下除 j = i 外各因子均为常数（导数 0），和式中仅剩一项。 -/
+theorem hFunc_partial_deriv {n : ℕ} (θl θu θ : Vec n) (i : Fin n) :
+    HasDerivAt (fun x : ℝ => ∏ j : Fin n, hFunc (θl j) (θu j) (if j = i then x else θ j))
+      ((∏ j : Fin n, if j = i then 1 else hFunc (θl j) (θu j) (θ j)) *
+        ((θu i + θl i - 2 * θ i) / (θu i - θl i) ^ 2)) (θ i) := by
+  let f : Fin n → ℝ → ℝ := fun j x => hFunc (θl j) (θu j) (if j = i then x else θ j)
+  let v : ℝ := (θu i + θl i - 2 * θ i) / (θu i - θl i) ^ 2
+  let f' : Fin n → ℝ := fun j => if j = i then v else 0
+  -- j = i 时是 hFunc (θl i) (θu i)，用单因子导数；j ≠ i 时为常数（导数 0）
+  have hfi : HasDerivAt (f i) v (θ i) := by
+    simpa [f, v] using hFunc_deriv (θl i) (θu i) (θ i)
+  have hfne : ∀ j, j ≠ i → HasDerivAt (f j) 0 (θ i) := by
+    intro j hji
+    have hc : f j = fun _ : ℝ => hFunc (θl j) (θu j) (θ j) := by
+      funext x
+      simp [f, hji]
+    rw [hc]
+    exact hasDerivAt_const (θ i) (hFunc (θl j) (θu j) (θ j))
+  -- 乘积法则组装：d/dθ_i ∏ f_j = ∑_j (∏_{k≠j} f_k) · f'_j，仅 j = i 项非零
+  have hf : ∀ j ∈ (Finset.univ : Finset (Fin n)), HasDerivAt (f j) (f' j) (θ i) := by
+    intro j hj
+    by_cases hji : j = i
+    · subst hji
+      simpa [f'] using hfi
+    · simpa [f', hji] using hfne j hji
+  have hprod : HasDerivAt (∏ j ∈ (Finset.univ : Finset (Fin n)), f j)
+      (∑ j ∈ (Finset.univ : Finset (Fin n)),
+        (∏ k ∈ (Finset.univ : Finset (Fin n)).erase j, f k (θ i)) • f' j) (θ i) := by
+    exact HasDerivAt.finsetProd (u := (Finset.univ : Finset (Fin n))) (f := f) (f' := f') hf
+  have hprod' : HasDerivAt (fun x : ℝ => ∏ j : Fin n, f j x)
+      (∑ j ∈ (Finset.univ : Finset (Fin n)),
+        (∏ k ∈ (Finset.univ : Finset (Fin n)).erase j, f k (θ i)) • f' j) (θ i) := by
+    convert hprod using 1
+    funext x
+    rw [Finset.prod_apply]
+  -- ∏_{k≠i} h_k(θ_k) 化为带 if 的整积：i 因子为 1（消失）
+  have herase : (∏ k ∈ (Finset.univ : Finset (Fin n)).erase i,
+        hFunc (θl k) (θu k) (if k = i then θ i else θ k)) =
+      ∏ k : Fin n, if k = i then 1 else hFunc (θl k) (θu k) (θ k) := by
+    rw [← Finset.filter_ne']
+    rw [Finset.prod_filter]
+    apply Finset.prod_congr rfl
+    intro k hk
+    by_cases hki : k = i
+    · simp [hki]
+    · simp [hki]
+  -- 和式坍缩到 j = i 一项（f' 其余为 0），乘积替换为 herase，即可闭合
+  simpa [f, f', herase, smul_ite, smul_eq_mul, Finset.sum_ite_eq', v] using hprod'
+
+/-- 分段梯度（简化版）：θ < θ_M 时取第一分支（v ≥ 0，推向上限），否则取第二分支
+   （v ≤ 0，推向下限）—— 文档 (19)。 -/
+noncomputable def piecewiseGrad (θl θu θ : ℝ) : ℝ :=
+  if θ < (θl + θu) / 2 then (θ - θl) / (θu - θl) ^ 2 else (θ - θu) / (θu - θl) ^ 2
+
+/-- 区间 1 性质：θ < θ_M 时 v ≥ 0（推向上限），θ ≥ θ⁻ 保证分子非负 —— 文档 (19) -/
+theorem piecewiseGrad_lower {θl θu θ : ℝ} (hl : θl < θu) (hθ : θl ≤ θ) (hθm : θ < (θl + θu) / 2) :
+    0 ≤ piecewiseGrad θl θu θ := by
+  rw [piecewiseGrad, if_pos hθm]
+  have hΔ : 0 < θu - θl := by linarith
+  exact div_nonneg (by linarith) (le_of_lt (sq_pos_of_pos hΔ))
+
+/-- 区间 2 性质：θ > θ_M 时 v ≤ 0（推向下限），θ ≤ θ⁺ 保证分子非正 —— 文档 (19) -/
+theorem piecewiseGrad_upper {θl θu θ : ℝ} (hl : θl < θu) (hθ : θ ≤ θu) (hθm : (θl + θu) / 2 < θ) :
+    piecewiseGrad θl θu θ ≤ 0 := by
+  rw [piecewiseGrad, if_neg (not_lt_of_gt hθm)]
+  have hden : 0 < (θu - θl) ^ 2 := sq_pos_of_pos (by linarith)
+  rw [div_le_iff₀ hden]
+  linarith
+
+/-- 端点值：v(θ⁻) = 0，v(θ⁺) = 0 —— 文档 (19)。
+   注意：需 θ⁻ < θ⁺（hl），否则 θ⁻ ≥ θ_M 时首分支不成立，端点值公式退化。 -/
+theorem piecewiseGrad_endpoints {θl θu : ℝ} (hl : θl < θu) :
+    piecewiseGrad θl θu θl = 0 ∧ piecewiseGrad θl θu θu = 0 := by
+  constructor
+  · rw [piecewiseGrad]
+    rw [if_pos (by linarith : θl < (θl + θu) / 2)]
+    simp
+  · rw [piecewiseGrad]
+    rw [if_neg (not_lt_of_gt (by linarith : (θl + θu) / 2 < θu))]
+    simp
+
+/-- θ_M 处不连续：左分支值 (θ_M − θ⁻)/Δ² > 0 而右分支值 (θ_M − θ⁺)/Δ² < 0
+   （Δ = θ⁺ − θ⁻ > 0）—— 文档 (19) 注明的不连续。
+   注：piecewiseGrad 在 θ_M 处取第二分支（if 条件 θ_M < θ_M 为假），
+   故「跳跃」表现为：左分支在 θ_M 的值 > 0，而实际取值（右分支）< 0。 -/
+theorem piecewiseGrad_jump_at_mid {θl θu : ℝ} (hl : θl < θu) :
+    0 < ((θl + θu) / 2 - θl) / (θu - θl) ^ 2 ∧ ((θl + θu) / 2 - θu) / (θu - θl) ^ 2 < 0 := by
+  have hΔ : 0 < θu - θl := by linarith
+  constructor
+  · exact div_pos (by linarith) (sq_pos_of_pos hΔ)
+  · have hden : 0 < (θu - θl) ^ 2 := sq_pos_of_pos hΔ
+    rw [div_lt_iff₀ hden]
+    linarith
+
 end Velocity
