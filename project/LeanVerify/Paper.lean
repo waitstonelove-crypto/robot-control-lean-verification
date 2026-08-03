@@ -1,6 +1,8 @@
 import LeanVerify.Core
+import LeanVerify.QP_LVI_PNN
 
 open Matrix
+open QPLVI
 
 namespace Paper
 
@@ -148,5 +150,186 @@ theorem vam_equiv_minimizer {n : ℕ} (α β ζ : ℝ) (hαβ : α + β = 1) (θ
           = ((1 / 2) * eNorm y ^ 2 + α * ζ * inner ℝ θd y)
             - ((1 / 2) * eNorm x ^ 2 + α * ζ * inner ℝ θd x) := vam_equiv α β ζ hαβ θd y x
       nlinarith [hx.2 y hy, hd]
+
+/-- 拉格朗日函数 L(θ̈, ϑ, ν) = ½θ̈ᵀθ̈ + αζθ̇ᵀθ̈ + ϑᵀ(r̈G − J_Eθ̈) + ν(J_C⊗uθ̈ − b) —— 论文 (29) -/
+noncomputable def lagrangian {n m : ℕ} (α ζ : ℝ) (θd : Vec n) (θdd : Vec n)
+    (JE : Matrix (Fin m) (Fin n) ℝ) (rGd : Vec m) (lam : Vec m) (JC : Matrix (Fin m) (Fin n) ℝ)
+    (u : Vec m) (b : ℝ) (nu : ℝ) : ℝ :=
+  (1 / 2) * inner ℝ θdd θdd + α * ζ * inner ℝ θd θdd + inner ℝ lam (rGd - JE *ᵥ θdd) +
+    nu * (inner ℝ (otimes JC u) θdd - b)
+
+/-- 拉格朗日的二次结构：L(x1) − L(x2) = ⟨s, x1 − x2⟩ + ½‖x1−x2‖²，
+   其中 s = θ̈ + αζθ̇ − J_Eᵀϑ + ν(J_C⊗u) 即论文 (30a) 的 ∂L/∂θ̈（代数层，替代 FDeriv 封装） -/
+theorem lagrangian_quadratic {n m : ℕ} (α ζ : ℝ) (θd : Vec n) (JE : Matrix (Fin m) (Fin n) ℝ)
+    (rGd : Vec m) (lam : Vec m) (JC : Matrix (Fin m) (Fin n) ℝ) (u : Vec m) (b : ℝ) (nu : ℝ)
+    (x1 x2 : Vec n) :
+    lagrangian α ζ θd x1 JE rGd lam JC u b nu - lagrangian α ζ θd x2 JE rGd lam JC u b nu
+      = inner ℝ (x2 + (α * ζ) • θd - (JEᵀ) *ᵥ lam + nu • otimes JC u) (x1 - x2) +
+        (1 / 2) * eNorm (x1 - x2) ^ 2 := by
+  have h1 : (1 / 2) * inner ℝ x1 x1 - (1 / 2) * inner ℝ x2 x2
+      = inner ℝ x2 (x1 - x2) + (1 / 2) * eNorm (x1 - x2) ^ 2 := by
+    rw [eNorm_sq_eq_inner]
+    have hx : x1 = x2 + (x1 - x2) := by abel
+    have hinner : inner ℝ x1 x1 =
+        inner ℝ x2 x2 + 2 * inner ℝ x2 (x1 - x2) + inner ℝ (x1 - x2) (x1 - x2) := by
+      calc
+        inner ℝ x1 x1 = inner ℝ (x2 + (x1 - x2)) (x2 + (x1 - x2)) := by
+          congr 2 <;> exact hx
+        _ = inner ℝ x2 x2 + 2 * inner ℝ x2 (x1 - x2) + inner ℝ (x1 - x2) (x1 - x2) := by
+          simp only [vec_inner_add_left, vec_inner_add_right, vec_inner_symm x2 (x1 - x2)]
+          ring
+    rw [hinner]
+    ring
+  have h2 : α * ζ * inner ℝ θd x1 - α * ζ * inner ℝ θd x2 = α * ζ * inner ℝ θd (x1 - x2) := by
+    have hsub : inner ℝ θd x1 - inner ℝ θd x2 = inner ℝ θd (x1 - x2) := by
+      exact (vec_inner_sub_right θd x1 x2).symm
+    rw [← mul_sub]
+    rw [hsub]
+  have h3 : inner ℝ lam (rGd - JE *ᵥ x1) - inner ℝ lam (rGd - JE *ᵥ x2)
+      = -inner ℝ ((JEᵀ) *ᵥ lam) (x1 - x2) := by
+    calc
+      inner ℝ lam (rGd - JE *ᵥ x1) - inner ℝ lam (rGd - JE *ᵥ x2)
+          = inner ℝ lam ((rGd - JE *ᵥ x1) - (rGd - JE *ᵥ x2)) := by
+            rw [← vec_inner_sub_right lam (rGd - JE *ᵥ x1) (rGd - JE *ᵥ x2)]
+      _ = inner ℝ lam (-(JE *ᵥ (x1 - x2))) := by
+            congr 1
+            rw [Matrix.mulVec_sub]
+            abel
+      _ = -inner ℝ lam (JE *ᵥ (x1 - x2)) := by rw [vec_inner_neg_right]
+      _ = -inner ℝ ((JEᵀ) *ᵥ lam) (x1 - x2) := by
+            rw [vec_inner_symm lam (JE *ᵥ (x1 - x2))]
+            rw [vec_mulVec_adjoint JE (x1 - x2) lam]
+            rw [vec_inner_symm (x1 - x2) ((JEᵀ) *ᵥ lam)]
+  have h4 : nu * (inner ℝ (otimes JC u) x1 - b) - nu * (inner ℝ (otimes JC u) x2 - b)
+      = nu * inner ℝ (otimes JC u) (x1 - x2) := by
+    have hsub : inner ℝ (otimes JC u) x1 - inner ℝ (otimes JC u) x2 =
+        inner ℝ (otimes JC u) (x1 - x2) := by
+      exact (vec_inner_sub_right (otimes JC u) x1 x2).symm
+    calc
+      nu * (inner ℝ (otimes JC u) x1 - b) - nu * (inner ℝ (otimes JC u) x2 - b)
+          = nu * ((inner ℝ (otimes JC u) x1 - b) - (inner ℝ (otimes JC u) x2 - b)) := by
+            rw [← mul_sub]
+      _ = nu * (inner ℝ (otimes JC u) x1 - inner ℝ (otimes JC u) x2) := by
+            congr 1
+            ring
+      _ = nu * inner ℝ (otimes JC u) (x1 - x2) := by rw [hsub]
+  rw [show lagrangian α ζ θd x1 JE rGd lam JC u b nu - lagrangian α ζ θd x2 JE rGd lam JC u b nu =
+      ((1 / 2) * inner ℝ x1 x1 - (1 / 2) * inner ℝ x2 x2) +
+      (α * ζ * inner ℝ θd x1 - α * ζ * inner ℝ θd x2) +
+      (inner ℝ lam (rGd - JE *ᵥ x1) - inner ℝ lam (rGd - JE *ᵥ x2)) +
+      (nu * (inner ℝ (otimes JC u) x1 - b) - nu * (inner ℝ (otimes JC u) x2 - b)) by
+        unfold lagrangian
+        abel]
+  rw [h1, h2, h3, h4]
+  rw [eNorm_sq_eq_inner]
+  simp only [vec_inner_add_left, vec_inner_sub_left, vec_inner_smul_left, neg_smul]
+  ring
+
+/-- F 的单调性直接验证（论文 Definition 1 + (36) 的代数实质）：
+   ⟨δ, F(λ+δ) − F(λ)⟩ = ‖δx‖² ≥ 0，对应论文 (34) 的 F₁ = θ̈ − J_Eᵀϑ + ϑ(J_C⊗u) + αζθ̇、
+   F₂ = J_Eθ̈ − r̈G、F₃ = b − J_C⊗uθ̈（仿射部分，平移项 αζθ̇、r̈G、b 对差无贡献）。
+   注：论文 (35) 的 ∇F 矩阵 (2,1) 块印为 −J_E，与 (34) 的 F₂ = J_Eθ̈ − r̈G 不符（∂F₂/∂θ̈ = J_E）；
+   本验证以 (34) 为准，单调性结论 ‖δx‖² 与 (36) 的 diag(2I,0,0) 一致。 -/
+theorem F_monotone {n m : ℕ} (JE : Matrix (Fin m) (Fin n) ℝ) (JC : Matrix (Fin m) (Fin n) ℝ)
+    (u : Vec m) (δx : Vec n) (δlam : Vec m) (δnu : ℝ) :
+    inner ℝ δx (δx - (JEᵀ) *ᵥ δlam + δnu • otimes JC u) +
+    inner ℝ δlam (JE *ᵥ δx) + δnu * (-(inner ℝ (otimes JC u) δx)) = eNorm δx ^ 2 := by
+  rw [eNorm_sq_eq_inner]
+  rw [vec_inner_add_right, vec_inner_sub_right, vec_inner_smul_right]
+  rw [← vec_mulVec_adjoint JE δx δlam]
+  rw [vec_inner_symm δlam (JE *ᵥ δx)]
+  rw [vec_inner_symm (otimes JC u) δx]
+  ring
+
+/-- F 单调非负（论文 Definition 1 验证完成） —— 供 Theorem 2 应用链引用 -/
+theorem F_monotone_nonneg {n m : ℕ} (JE : Matrix (Fin m) (Fin n) ℝ) (JC : Matrix (Fin m) (Fin n) ℝ)
+    (u : Vec m) (δx : Vec n) (δlam : Vec m) (δnu : ℝ) :
+    0 ≤ inner ℝ δx (δx - (JEᵀ) *ᵥ δlam + δnu • otimes JC u) +
+        inner ℝ δlam (JE *ᵥ δx) + δnu * (-(inner ℝ (otimes JC u) δx)) := by
+  rw [F_monotone]
+  exact sq_nonneg _
+
+/-- 非负投影 (·)† = max(·,0) 的不动点刻画：ϑ = (ϑ+g)† ⟺ ϑ ≥ 0 ∧ g ≤ 0 ∧ (ϑ = 0 ∨ g = 0)
+   —— 论文 (30c) 的互补松弛语义（单分量） -/
+theorem nonneg_proj_fixed_point (nu g : ℝ) :
+    nu = max (nu + g) 0 ↔ nu ≥ 0 ∧ g ≤ 0 ∧ (nu = 0 ∨ g = 0) := by
+  constructor
+  · intro h
+    have h1 : nu ≥ 0 := by
+      rw [h]
+      exact le_max_of_le_right le_rfl
+    have h2 : g ≤ 0 := by
+      have : nu + g ≤ nu := (le_max_left (nu + g) 0).trans_eq h.symm
+      linarith
+    have h3 : nu = 0 ∨ g = 0 := by
+      by_cases hnu0 : nu = 0
+      · exact Or.inl hnu0
+      · right
+        have hpos : 0 < nu := lt_of_le_of_ne h1 (Ne.symm hnu0)
+        have hge : 0 ≤ nu + g := by
+          by_contra hlt
+          have : nu + g < 0 := not_le.mp hlt
+          have hmax : max (nu + g) 0 = 0 := max_eq_right (le_of_lt this)
+          rw [h, hmax] at hpos
+          linarith
+        have hmax : max (nu + g) 0 = nu + g := max_eq_left hge
+        have : nu = nu + g := by
+          calc
+            nu = max (nu + g) 0 := h
+            _ = nu + g := hmax
+        linarith
+    exact ⟨h1, h2, h3⟩
+  · intro h
+    rcases h with ⟨hnu0, hg, hcases⟩
+    rcases hcases with hnu | hg0
+    · rw [hnu]
+      simpa using (max_eq_right hg).symm
+    · rw [hg0]
+      simpa using (max_eq_left hnu0).symm
+
+/-- 框内不动点 = 一阶条件：x = P_V(x − g) 且 x ∈ V ⟺ ∀ z ∈ V, ⟨z − x, g⟩ ≥ 0
+   —— 论文 (30a)「θ̈ = P_V(θ̈ − ∂L/∂θ̈)」与 KKT 平稳性的等价（对任意梯度场 g；(28) 实例化） -/
+theorem fixed_point_iff_first_order {n : ℕ} {l h : Vec n} (g : Vec n) (x : Vec n)
+    (hlh : ∀ i, l i ≤ h i) (hx : ∀ i, l i ≤ x i ∧ x i ≤ h i) :
+    (x = boxProj l h (x - g)) ↔ ∀ z : Vec n, (∀ i, l i ≤ z i ∧ z i ≤ h i) → 0 ≤ inner ℝ (z - x) g := by
+  constructor
+  · intro hfp
+    have hVI := fixed_point_implies_VI (fun _ : Vec n => g) (feasibleSetBox l h) (boxProj l h)
+      (fun y => fun i => ⟨(boxProj_mem hlh y).1 i, (boxProj_mem hlh y).2 i⟩)
+      (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
+      x hx hfp
+    intro z hz
+    exact hVI.2 z (by simpa [feasibleSetBox] using hz)
+  · intro hfirst
+    exact VI_implies_fixed_point (fun _ : Vec n => g) (feasibleSetBox l h) (boxProj l h)
+      (fun y => fun i => ⟨(boxProj_mem hlh y).1 i, (boxProj_mem hlh y).2 i⟩)
+      (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
+      x hx ⟨hx, fun z hz => hfirst z (by simpa [feasibleSetBox] using hz)⟩
+
+/-- Theorem 2 组装（论文 Theorem 2 的验证骨架）：
+   ① 平稳性：θ̈ = P_V(θ̈ − ∂L/∂θ̈)（hfix）⟹ 框内 + 一阶条件（fixed_point_iff_first_order）
+   ② 原始可行性：r̈G = J_Eθ̈（heq，RNN 的 ϑ̇ 平衡分量）
+   ③ 互补松弛：ν = (ν + g)†（hnu）⟹ ν ≥ 0 ∧ g ≤ 0 ∧ (ν = 0 ∨ g = 0)（nonneg_proj_fixed_point）
+   ④ F 单调（F_monotone_nonneg，论文 (36)）
+   收敛到 QP (28) 最优解：「KKT ⟹ 最优」在凸性与约束规格下成立（假设，见 VERIFICATION.md），
+   收敛速率由 ConvergenceAxioms.pnn_convergence 覆盖。 -/
+theorem paper_theorem2_assembly {n m : ℕ} {l h : Vec n} (JE : Matrix (Fin m) (Fin n) ℝ)
+    (JC : Matrix (Fin m) (Fin n) ℝ) (u : Vec m) (α ζ : ℝ) (θd θdd : Vec n)
+    (rGd : Vec m) (b : ℝ) (lam : Vec m) (nu g : ℝ) (hlh : ∀ i, l i ≤ h i)
+    (hfix : θdd = boxProj l h (θdd - (θdd + (α * ζ) • θd - (JEᵀ) *ᵥ lam + nu • otimes JC u)))
+    (heq : rGd = JE *ᵥ θdd)
+    (hnu : nu = max (nu + g) 0) :
+    (∀ i, l i ≤ θdd i ∧ θdd i ≤ h i) ∧
+    (∀ z : Vec n, (∀ i, l i ≤ z i ∧ z i ≤ h i) →
+      0 ≤ inner ℝ (z - θdd) (θdd + (α * ζ) • θd - (JEᵀ) *ᵥ lam + nu • otimes JC u)) ∧
+    (0 ≤ nu ∧ g ≤ 0 ∧ (nu = 0 ∨ g = 0)) := by
+  have hin : ∀ i, l i ≤ θdd i ∧ θdd i ≤ h i := by
+    intro i
+    rw [hfix]
+    exact ⟨(boxProj_mem hlh _).1 i, (boxProj_mem hlh _).2 i⟩
+  have hfirst : ∀ z : Vec n, (∀ i, l i ≤ z i ∧ z i ≤ h i) →
+      0 ≤ inner ℝ (z - θdd) (θdd + (α * ζ) • θd - (JEᵀ) *ᵥ lam + nu • otimes JC u) :=
+    (fixed_point_iff_first_order (θdd + (α * ζ) • θd - (JEᵀ) *ᵥ lam + nu • otimes JC u) θdd hlh hin).1 hfix
+  exact ⟨hin, hfirst, (nonneg_proj_fixed_point nu g).mp hnu⟩
 
 end Paper
