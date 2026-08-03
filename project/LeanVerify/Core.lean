@@ -265,6 +265,38 @@ lemma vec_inner_symm {n : ℕ} (x y : Vec n) : inner ℝ x y = inner ℝ y x := 
   intro i hi
   exact mul_comm (x i) (y i)
 
+/-- 标量提取：⟨a•x, y⟩ = a·⟨x, y⟩ -/
+lemma vec_inner_smul_left {n : ℕ} (a : ℝ) (x y : Vec n) :
+    inner ℝ (a • x) y = a * inner ℝ x y := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum]
+  calc
+    ∑ i, (a • x) i * y i = ∑ i, a * (x i * y i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      simp
+      ring
+    _ = a * ∑ i, x i * y i := by rw [Finset.mul_sum]
+
+/-- 标量提取：⟨x, a•y⟩ = a·⟨x, y⟩ -/
+lemma vec_inner_smul_right {n : ℕ} (a : ℝ) (x y : Vec n) :
+    inner ℝ x (a • y) = a * inner ℝ x y := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum]
+  calc
+    ∑ i, x i * (a • y) i = ∑ i, a * (x i * y i) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      simp
+      ring
+    _ = a * ∑ i, x i * y i := by rw [Finset.mul_sum]
+
+/-- 负号提取：⟨−x, y⟩ = −⟨x, y⟩ -/
+lemma vec_inner_neg_left {n : ℕ} (x y : Vec n) : inner ℝ (-x) y = - inner ℝ x y := by
+  simpa using vec_inner_smul_left (-1) x y
+
+/-- 负号提取（右）：⟨x, −y⟩ = −⟨x, y⟩ -/
+lemma vec_inner_neg_right {n : ℕ} (x y : Vec n) : inner ℝ x (-y) = - inner ℝ x y := by
+  rw [vec_inner_symm, vec_inner_neg_left, vec_inner_symm]
+
 /-- 伴随性：⟨Ax, y⟩ = ⟨x, Aᵀy⟩（逐分量展开硬算） -/
 lemma vec_mulVec_adjoint {m n : ℕ} (A : Matrix (Fin m) (Fin n) ℝ) (x : Vec n) (y : Vec m) :
     inner ℝ (A *ᵥ x) y = inner ℝ x (Aᵀ *ᵥ y) := by
