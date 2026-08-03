@@ -62,4 +62,42 @@ theorem asoa_constraint {m n : ℕ} (JC JdC : Matrix (Fin m) (Fin n) ℝ) (u : V
     inner ℝ (otimes JC u) θdd ≤ asoaB JC JdC u θd dGJK d2 τ := by
   simpa [asoaB] using asoa_basic_ineq JC JdC u θd θdd dGJK d2 τ hτ hineq
 
+/-- η⁻ = max(ϖp(μθ⁻−θ), ϖv(θ̇⁻−θ̇), θ̈⁻)，逐分量 —— 论文 (9a) -/
+noncomputable def etaLow {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd : Vec n) (θL θdL θddL : Vec n) : Vec n :=
+  fun i => max (max (ϖp * (μ * θL i - θ i)) (ϖv * (θdL i - θd i))) (θddL i)
+
+/-- η⁺ = min(ϖp(μθ⁺−θ), ϖv(θ̇⁺−θ̇), θ̈⁺)，逐分量 —— 论文 (9b) -/
+noncomputable def etaHigh {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd : Vec n) (θU θdU θddU : Vec n) : Vec n :=
+  fun i => min (min (ϖp * (μ * θU i - θ i)) (ϖv * (θdU i - θd i))) (θddU i)
+
+/-- 兼容性：η⁻ ≥ θ̈⁻、η⁺ ≤ θ̈⁺（逐分量），因此 [η⁻, η⁺] ⊆ [θ̈⁻, θ̈⁺] —— 论文 (8) 语义 -/
+theorem eta_bounds {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd θL θdL θddL θU θdU θddU : Vec n) :
+    (∀ i, θddL i ≤ etaLow ϖp ϖv μ θ θd θL θdL θddL i) ∧
+    (∀ i, etaHigh ϖp ϖv μ θ θd θU θdU θddU i ≤ θddU i) := by
+  constructor
+  · intro i
+    exact le_max_of_le_right le_rfl
+  · intro i
+    exact min_le_right (min (ϖp * (μ * θU i - θ i)) (ϖv * (θdU i - θd i))) (θddU i)
+
+/-- 临界收紧：ϖp > 0 时，θ 增大 ⟹ ϖp(μθ⁻−θ) 减小（θ 越靠近下限，η⁻ 的下限项越紧）
+   —— 论文 Remark 1（该不等式与 μ 符号无关，μ 的正性用于保证 ϖp 项的物理方向） -/
+theorem eta_tightening {n : ℕ} (ϖp μ : ℝ) (hϖ : 0 < ϖp)
+    (θL : Vec n) (θ1 θ2 : Vec n) (i : Fin n) (hθ : θ1 i ≤ θ2 i) :
+    ϖp * (μ * θL i - θ2 i) ≤ ϖp * (μ * θL i - θ1 i) := by
+  have hle : μ * θL i - θ2 i ≤ μ * θL i - θ1 i := by linarith
+  exact mul_le_mul_of_nonneg_left hle (le_of_lt hϖ)
+
+/-- η⁻ 判定：η⁻_i ≤ x ⟺ 三项均 ≤ x（max 结构） —— 论文 (9a) -/
+theorem etaLow_le_iff {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd θL θdL θddL : Vec n) (i : Fin n) (x : ℝ) :
+    etaLow ϖp ϖv μ θ θd θL θdL θddL i ≤ x ↔
+      ϖp * (μ * θL i - θ i) ≤ x ∧ ϖv * (θdL i - θd i) ≤ x ∧ θddL i ≤ x := by
+  simp [etaLow, max_le_iff, and_assoc]
+
+/-- η⁺ 判定：x ≤ η⁺_i ⟺ x ≤ 三项（min 结构） —— 论文 (9b) -/
+theorem etaHigh_ge_iff {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd θU θdU θddU : Vec n) (i : Fin n) (x : ℝ) :
+    x ≤ etaHigh ϖp ϖv μ θ θd θU θdU θddU i ↔
+      x ≤ ϖp * (μ * θU i - θ i) ∧ x ≤ ϖv * (θdU i - θd i) ∧ x ≤ θddU i := by
+  simp [etaHigh, le_min_iff, and_assoc]
+
 end Paper
