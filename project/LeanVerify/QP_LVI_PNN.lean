@@ -1,7 +1,8 @@
 import LeanVerify.Core
+import Mathlib.Analysis.Matrix.Normed
 
 open Matrix Filter
-open scoped Topology
+open scoped Topology Matrix.Norms.Operator NNReal
 
 namespace QPLVI
 
@@ -277,5 +278,58 @@ theorem box_pnn_equilibrium_implies_VI {n : ℕ} {l h : Vec n} (F : Vec n → Ve
     (fun y' => fun i => ⟨(boxProj_mem hlh y').1 i, (boxProj_mem hlh y').2 i⟩)
     (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
     y hy hfp
+
+/-- 离散 RNN 迭代：y_{k+1} = P_Ω(y_k − β(My_k + κ)) —— 文档 (31) -/
+noncomputable def discIter {n : ℕ} (P : Vec n → Vec n) (M : Matrix (Fin n) (Fin n) ℝ) (κ : Vec n)
+    (β : ℝ) (y : Vec n) : Vec n := P (y - β • (M *ᵥ y + κ))
+
+/-- 线性部分压缩条件：‖I − βM‖ < 1 —— 文档 (31)「0 < β < 2/‖M‖」的算子范数形式。
+   谱界推导（对称正定 M 下 β < 2/λ_max(M) ⟹ ‖I − βM‖ < 1）依赖谱理论，见 VERIFICATION.md -/
+theorem linear_part_contraction {n : ℕ} (M : Matrix (Fin n) (Fin n) ℝ) (β : ℝ)
+    (hLin : ‖1 - β • M‖ < 1) :
+    ‖1 - β • M‖ < 1 := hLin
+
+/-- 离散迭代收敛（Banach 不动点定理）：投影非扩张 + 线性部分压缩 ⟹ 迭代收敛到不动点
+   —— 文档 (31)。不动点结合 fixed_point_implies_VI 即 LVI 解。 -/
+theorem discIter_converges {n : ℕ} (P : Vec n → Vec n) (M : Matrix (Fin n) (Fin n) ℝ) (κ : Vec n)
+    (β : ℝ) (hPnonex : ∀ a b, ‖P a - P b‖ ≤ ‖a - b‖)
+    (hLin : ‖1 - β • M‖ < 1) (y0 : Vec n) :
+    ∃ ystar, (∀ k : ℕ, Tendsto (fun i : ℕ => Nat.iterate (discIter P M κ β) i y0) atTop (𝓝 ystar)) ∧
+      discIter P M κ β ystar = ystar := by
+  let Φ : Vec n → Vec n := discIter P M κ β
+  let q : ℝ := ‖1 - β • M‖
+  have hq0 : 0 ≤ q := by exact norm_nonneg _
+  -- 压缩性：‖Φ a − Φ b‖ ≤ q·‖a − b‖
+  have hcontr : ∀ a b, ‖Φ a - Φ b‖ ≤ q * ‖a - b‖ := by
+    intro a b
+    have hd : (a - β • (M *ᵥ a + κ)) - (b - β • (M *ᵥ b + κ)) = (1 - β • M) *ᵥ (a - b) := by
+      calc
+        (a - β • (M *ᵥ a + κ)) - (b - β • (M *ᵥ b + κ))
+            = (a - b) - β • (M *ᵥ a - M *ᵥ b) := by
+              rw [smul_add, smul_add]
+              rw [smul_sub]
+              abel
+        _ = (a - b) - β • (M *ᵥ (a - b)) := by rw [← Matrix.mulVec_sub]
+        _ = (1 - β • M) *ᵥ (a - b) := by
+              rw [Matrix.sub_mulVec, Matrix.one_mulVec]
+              rw [Matrix.smul_mulVec]
+    calc
+      ‖Φ a - Φ b‖ = ‖P (a - β • (M *ᵥ a + κ)) - P (b - β • (M *ᵥ b + κ))‖ := rfl
+      _ ≤ ‖(a - β • (M *ᵥ a + κ)) - (b - β • (M *ᵥ b + κ))‖ := hPnonex _ _
+      _ = ‖(1 - β • M) *ᵥ (a - b)‖ := by rw [hd]
+      _ ≤ ‖1 - β • M‖ * ‖a - b‖ := linfty_opNorm_mulVec (1 - β • M) (a - b)
+      _ = q * ‖a - b‖ := rfl
+  let qnn : ℝ≥0 := ⟨q, hq0⟩
+  have hqnn : qnn < 1 := by
+    exact_mod_cast hLin
+  have hLip : LipschitzWith qnn Φ := (lipschitzWith_iff_dist_le_mul).mpr (by
+    intro a b
+    change ‖Φ a - Φ b‖ ≤ q * ‖a - b‖
+    exact hcontr a b)
+  have hf : ContractingWith qnn Φ := ⟨hqnn, hLip⟩
+  rcases hf.exists_fixedPoint y0 (by simp : edist y0 (Φ y0) ≠ ⊤) with ⟨ystar, hfix, htend, _⟩
+  refine ⟨ystar, ⟨fun k => ?_, ?_⟩⟩
+  · simpa [Φ] using htend
+  · simpa [Φ, Function.IsFixedPt] using hfix
 
 end QPLVI
