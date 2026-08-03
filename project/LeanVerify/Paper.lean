@@ -100,4 +100,53 @@ theorem etaHigh_ge_iff {n : ℕ} (ϖp ϖv μ : ℝ) (θ θd θU θdU θddU : Vec
       x ≤ ϖp * (μ * θU i - θ i) ∧ x ≤ ϖv * (θdU i - θd i) ∧ x ≤ θddU i := by
   simp [etaHigh, le_min_iff, and_assoc]
 
+/-- 展开恒等式：½(α‖θ̈+ζθ̇‖² + β‖θ̈‖²) = ½‖θ̈‖² + αζ⟨θ̇,θ̈⟩ + ½αζ²‖θ̇‖²（α+β=1）
+   —— 论文 (24)(25)(26)。‖·‖ 为欧氏范数 eNorm。 -/
+theorem vam_expand {n : ℕ} (α β ζ : ℝ) (hαβ : α + β = 1) (θd θdd : Vec n) :
+    (1 / 2) * (α * eNorm (θdd + ζ • θd) ^ 2 + β * eNorm θdd ^ 2)
+      = (1 / 2) * eNorm θdd ^ 2 + α * ζ * inner ℝ θd θdd + (1 / 2) * α * ζ ^ 2 * eNorm θd ^ 2 := by
+  have hnorm : eNorm (θdd + ζ • θd) ^ 2 = eNorm θdd ^ 2 + 2 * ζ * inner ℝ θd θdd + ζ ^ 2 * eNorm θd ^ 2 := by
+    rw [eNorm_sq_eq_inner, eNorm_sq_eq_inner, eNorm_sq_eq_inner]
+    simp only [vec_inner_add_left, vec_inner_add_right, vec_inner_smul_left, vec_inner_smul_right]
+    rw [vec_inner_symm θdd θd]
+    ring
+  rw [hnorm]
+  have hβ : β = 1 - α := by linarith
+  rw [hβ]
+  ring
+
+/-- 目标差恒等式：VAM 原目标与简化目标（对 θ̈）相差与 θ̈ 无关的常数 —— 论文 Theorem 1 -/
+theorem vam_equiv {n : ℕ} (α β ζ : ℝ) (hαβ : α + β = 1) (θd θdd1 θdd2 : Vec n) :
+    (1 / 2) * (α * eNorm (θdd1 + ζ • θd) ^ 2 + β * eNorm θdd1 ^ 2)
+        - (1 / 2) * (α * eNorm (θdd2 + ζ • θd) ^ 2 + β * eNorm θdd2 ^ 2)
+      = ((1 / 2) * eNorm θdd1 ^ 2 + α * ζ * inner ℝ θd θdd1)
+        - ((1 / 2) * eNorm θdd2 ^ 2 + α * ζ * inner ℝ θd θdd2) := by
+  rw [vam_expand α β ζ hαβ θd θdd1, vam_expand α β ζ hαβ θd θdd2]
+  ring
+
+/-- 最小化器集合等价：VAM 原目标与简化目标在 S 上有相同的最小点集 —— 论文 Theorem 1 结论 -/
+theorem vam_equiv_minimizer {n : ℕ} (α β ζ : ℝ) (hαβ : α + β = 1) (θd : Vec n) (S : Set (Vec n)) :
+    {x ∈ S | ∀ y ∈ S, (1 / 2) * (α * eNorm (y + ζ • θd) ^ 2 + β * eNorm y ^ 2) ≥
+        (1 / 2) * (α * eNorm (x + ζ • θd) ^ 2 + β * eNorm x ^ 2)}
+      = {x ∈ S | ∀ y ∈ S, (1 / 2) * eNorm y ^ 2 + α * ζ * inner ℝ θd y ≥
+        (1 / 2) * eNorm x ^ 2 + α * ζ * inner ℝ θd x} := by
+  ext x
+  constructor <;> intro hx
+  · constructor
+    · exact hx.1
+    · intro y hy
+      have hd : (1 / 2) * (α * eNorm (y + ζ • θd) ^ 2 + β * eNorm y ^ 2)
+            - (1 / 2) * (α * eNorm (x + ζ • θd) ^ 2 + β * eNorm x ^ 2)
+          = ((1 / 2) * eNorm y ^ 2 + α * ζ * inner ℝ θd y)
+            - ((1 / 2) * eNorm x ^ 2 + α * ζ * inner ℝ θd x) := vam_equiv α β ζ hαβ θd y x
+      nlinarith [hx.2 y hy, hd]
+  · constructor
+    · exact hx.1
+    · intro y hy
+      have hd : (1 / 2) * (α * eNorm (y + ζ • θd) ^ 2 + β * eNorm y ^ 2)
+            - (1 / 2) * (α * eNorm (x + ζ • θd) ^ 2 + β * eNorm x ^ 2)
+          = ((1 / 2) * eNorm y ^ 2 + α * ζ * inner ℝ θd y)
+            - ((1 / 2) * eNorm x ^ 2 + α * ζ * inner ℝ θd x) := vam_equiv α β ζ hαβ θd y x
+      nlinarith [hx.2 y hy, hd]
+
 end Paper
