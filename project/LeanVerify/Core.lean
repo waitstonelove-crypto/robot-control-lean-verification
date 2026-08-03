@@ -183,3 +183,178 @@ theorem rpinv_self_conjTranspose {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h
   rw [Matrix.transpose_mul]
   rw [hsym, Matrix.transpose_transpose]
   rw [← Matrix.mul_assoc]
+
+section Nullspace
+
+/-- 零空间投影矩阵 P₀ = I − J†J —— 文档 (6) -/
+noncomputable def nullProj {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) : Matrix (Fin n) (Fin n) ℝ :=
+  1 - rpinv J h * J
+
+/-- P₀ 幂等：P₀² = P₀ -/
+theorem nullProj_idempotent {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    nullProj J h * nullProj J h = nullProj J h := by
+  unfold nullProj
+  let A : Matrix (Fin n) (Fin n) ℝ := rpinv J h * J
+  have hA : A * A = A := by
+    dsimp [A]
+    rw [← Matrix.mul_assoc, rpinv_self_mul_self J h]
+  calc
+    (1 - A) * (1 - A) = (1 - A) - (A - A * A) := by
+      simp [Matrix.sub_mul, Matrix.mul_sub]
+    _ = (1 - A) - (A - A) := by rw [hA]
+    _ = 1 - A := by abel
+
+/-- P₀ 对称 -/
+theorem nullProj_symmetric {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    (nullProj J h)ᵀ = nullProj J h := by
+  unfold nullProj
+  rw [Matrix.transpose_sub, Matrix.transpose_one, rpinv_self_conjTranspose J h]
+
+/-- 关键：J·P₀ = 0 —— 文档 (6)「J(I − J†J) = 0」，误差动态解耦的根基 -/
+theorem jacobian_mul_nullProj {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    J * nullProj J h = 0 := by
+  unfold nullProj
+  rw [Matrix.mul_sub, Matrix.mul_one, ← Matrix.mul_assoc, rpinv_mul_eq_one J h, Matrix.one_mul]
+  simp
+
+/-- P₀φ ∈ N(J)：J(P₀φ) = 0 -/
+theorem nullProj_in_nullspace {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) (φ : Vec n) :
+    J *ᵥ (nullProj J h *ᵥ φ) = 0 := by
+  rw [Matrix.mulVec_mulVec, jacobian_mul_nullProj J h, Matrix.zero_mulVec]
+
+/-- P₀ 在零空间上是恒等：Jx = 0 ⟹ P₀x = x -/
+theorem nullProj_eq_self_of_mem_nullspace {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ))
+    (x : Vec n) (hx : J *ᵥ x = 0) :
+    nullProj J h *ᵥ x = x := by
+  unfold nullProj
+  rw [Matrix.sub_mulVec, Matrix.one_mulVec, ← Matrix.mulVec_mulVec, hx, Matrix.mulVec_zero, sub_zero]
+
+/-- 通解结构：J(J†v + P₀φ) = v，∀φ —— 文档 (9) -/
+theorem general_solution {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) (v : Vec m) (φ : Vec n) :
+    J *ᵥ (rpinv J h *ᵥ v + nullProj J h *ᵥ φ) = v := by
+  rw [Matrix.mulVec_add]
+  simp [Matrix.mulVec_mulVec, rpinv_mul_eq_one J h, jacobian_mul_nullProj J h,
+    Matrix.one_mulVec, Matrix.zero_mulVec]
+
+end Nullspace
+
+/-- 内积对第一参数线性（逐分量展开） -/
+lemma vec_inner_add_left {n : ℕ} (a b x : Vec n) :
+    inner ℝ (a + b) x = inner ℝ a x + inner ℝ b x := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum, inner_vec_eq_sum]
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro i hi
+  change (a i + b i) * x i = a i * x i + b i * x i
+  ring
+
+/-- 内积对第二参数线性（逐分量展开） -/
+lemma vec_inner_add_right {n : ℕ} (x a b : Vec n) :
+    inner ℝ x (a + b) = inner ℝ x a + inner ℝ x b := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum, inner_vec_eq_sum]
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro i hi
+  change x i * (a i + b i) = x i * a i + x i * b i
+  ring
+
+/-- 实内积对称性（逐分量展开） -/
+lemma vec_inner_symm {n : ℕ} (x y : Vec n) : inner ℝ x y = inner ℝ y x := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum]
+  apply Finset.sum_congr rfl
+  intro i hi
+  exact mul_comm (x i) (y i)
+
+/-- 伴随性：⟨Ax, y⟩ = ⟨x, Aᵀy⟩（逐分量展开硬算） -/
+lemma vec_mulVec_adjoint {m n : ℕ} (A : Matrix (Fin m) (Fin n) ℝ) (x : Vec n) (y : Vec m) :
+    inner ℝ (A *ᵥ x) y = inner ℝ x (Aᵀ *ᵥ y) := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum]
+  change ∑ i, (∑ j, A i j * x j) * y i = ∑ j, x j * (∑ i, A i j * y i)
+  calc
+    ∑ i, (∑ j, A i j * x j) * y i = ∑ i, ∑ j, A i j * x j * y i := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      rw [Finset.sum_mul]
+    _ = ∑ j, ∑ i, A i j * x j * y i := by rw [Finset.sum_comm]
+    _ = ∑ j, x j * (∑ i, A i j * y i) := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      calc
+        ∑ i, A i j * x j * y i = ∑ i, x j * (A i j * y i) := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          ring
+        _ = x j * ∑ i, A i j * y i := by rw [Finset.mul_sum]
+
+/-- (J†)ᵀ = (JJᵀ)⁻¹ J —— 由 (JJᵀ)⁻¹ 的对称性得出 -/
+theorem rpinv_transpose {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    (rpinv J h)ᵀ = (J * Jᵀ)⁻¹ * J := by
+  unfold rpinv
+  rw [Matrix.transpose_mul, Matrix.transpose_transpose]
+  have hsym : ((J * Jᵀ)⁻¹)ᵀ = (J * Jᵀ)⁻¹ := by
+    have hJ : (J * Jᵀ)ᵀ = J * Jᵀ := by
+      rw [Matrix.transpose_mul, Matrix.transpose_transpose]
+    rw [Matrix.transpose_nonsing_inv (J * Jᵀ), hJ]
+  rw [hsym]
+
+/-- (J†)ᵀ P₀ = 0 —— 正交性的矩阵形式 -/
+theorem rpinv_transpose_mul_nullProj {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) :
+    (rpinv J h)ᵀ * nullProj J h = 0 := by
+  rw [rpinv_transpose J h]
+  rw [Matrix.mul_assoc]
+  rw [jacobian_mul_nullProj J h, Matrix.mul_zero]
+
+/-- 正交性：⟨J†v, P₀φ⟩ = 0 —— 最小范数证明的关键 -/
+theorem rpinv_inner_nullProj {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) (v : Vec m) (φ : Vec n) :
+    inner ℝ (rpinv J h *ᵥ v) (nullProj J h *ᵥ φ) = 0 := by
+  rw [vec_mulVec_adjoint (rpinv J h) v (nullProj J h *ᵥ φ)]
+  rw [Matrix.mulVec_mulVec]
+  rw [rpinv_transpose_mul_nullProj J h, Matrix.zero_mulVec]
+  rw [inner_vec_eq_sum]
+  simp
+
+/-- P₀ 半正定：⟨x, P₀x⟩ = ‖P₀x‖² ≥ 0 —— 文档 (7) 中 (I − J†J) 半正定的依据 -/
+theorem nullProj_inner_nonneg {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ)) (x : Vec n) :
+    0 ≤ inner ℝ x (nullProj J h *ᵥ x) := by
+  have h1 : inner ℝ x (nullProj J h *ᵥ x) =
+      inner ℝ (nullProj J h *ᵥ x) (nullProj J h *ᵥ x) := by
+    rw [vec_mulVec_adjoint (nullProj J h) x (nullProj J h *ᵥ x)]
+    congr 1
+    rw [nullProj_symmetric J h]
+    rw [Matrix.mulVec_mulVec, nullProj_idempotent J h]
+  rw [h1]
+  rw [← eNorm_sq_eq_inner (nullProj J h *ᵥ x)]
+  exact sq_nonneg (eNorm (nullProj J h *ᵥ x))
+
+/-- 最小范数性质（eNorm 版）：满足 Jθ̇ = v 的所有解中 ‖J†v‖ₑ 最小 —— 文档 (4)。
+   注意：计划原文用 ‖·‖，但 Mathlib 对 Vec 的范数是 sup 范数，最小范数性质只在欧氏范数
+   下成立，故用 eNorm（Core 已定义），这是已记录的记号修正。 -/
+theorem rpinv_min_norm {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ))
+    (v : Vec m) (x : Vec n) (hx : J *ᵥ x = v) :
+    eNorm (rpinv J h *ᵥ v) ≤ eNorm x := by
+  let a : Vec n := rpinv J h *ᵥ v
+  let b : Vec n := nullProj J h *ᵥ x
+  have hxb : x = a + b := by
+    dsimp [a, b]
+    symm
+    calc
+      rpinv J h *ᵥ v + nullProj J h *ᵥ x = rpinv J h *ᵥ (J *ᵥ x) + nullProj J h *ᵥ x := by rw [← hx]
+      _ = x := by
+        unfold nullProj
+        rw [Matrix.mulVec_mulVec, Matrix.sub_mulVec, Matrix.one_mulVec]
+        abel
+  have hab : inner ℝ a b = 0 := by
+    dsimp [a, b]
+    exact rpinv_inner_nullProj J h v x
+  have hba : inner ℝ b a = 0 := by
+    rw [vec_inner_symm b a, hab]
+  have hsq : eNorm x ^ 2 = eNorm a ^ 2 + eNorm b ^ 2 := by
+    rw [eNorm_sq_eq_inner x, eNorm_sq_eq_inner a, eNorm_sq_eq_inner b, hxb]
+    rw [vec_inner_add_left a b (a + b), vec_inner_add_right a a b, vec_inner_add_right b a b]
+    rw [hab, hba]
+    simp
+  have hsqle : eNorm a ^ 2 ≤ eNorm x ^ 2 := by
+    rw [hsq]
+    nlinarith [sq_nonneg (eNorm b)]
+  have habs : |eNorm a| ≤ |eNorm x| := sq_le_sq.mp hsqle
+  simpa [abs_of_nonneg (eNorm_nonneg a), abs_of_nonneg (eNorm_nonneg x)] using habs
