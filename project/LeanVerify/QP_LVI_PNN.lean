@@ -157,4 +157,110 @@ theorem kkt_eq_only_implies_vi {n m : ℕ} (Q : Matrix (Fin n) (Fin n) ℝ) (c :
       _ = 0 := by simp [hδ]
   simp [hinner]
 
+/-- 投影特征不等式 + 不动点 ⟹ LVI 解 —— 文档 (28) 反向（干净证明）：
+   不动点 ystar = P(ystar − F(ystar)) 代入特征不等式即得 ⟨z − ystar, F(ystar)⟩ ≥ 0 -/
+theorem fixed_point_implies_VI {n : ℕ} (F : Vec n → Vec n) (Ω : Set (Vec n))
+    (P : Vec n → Vec n) (hPmem : ∀ y, P y ∈ Ω)
+    (hPchar : ∀ a z, z ∈ Ω → inner ℝ (a - P a) (z - P a) ≤ 0)
+    (ystar : Vec n) (hystar : ystar ∈ Ω) (hfp : ystar = P (ystar - F ystar)) :
+    VI F Ω ystar := by
+  constructor
+  · exact hystar
+  · intro z hz
+    have h := hPchar (ystar - F ystar) z hz
+    rw [← hfp] at h
+    have h1 : inner ℝ (-F ystar) (z - ystar) ≤ 0 := by
+      have hsub : (ystar - F ystar) - ystar = -F ystar := by abel
+      simpa [hsub] using h
+    have h2 : - inner ℝ (F ystar) (z - ystar) ≤ 0 := by
+      simpa only [vec_inner_neg_left] using h1
+    have h3 : 0 ≤ inner ℝ (F ystar) (z - ystar) := by linarith
+    rw [vec_inner_symm]
+    exact h3
+
+/-- LVI 解 ⟹ 不动点 —— 文档 (28) 正向：
+   由 LVI（z := P a）与特征不等式（z := ystar）得 ‖ystar − P a‖² ≤ ⟨F(ystar), ystar − P a⟩ ≤ 0，
+   故 ystar = P(ystar − F(ystar))（eNorm 零判据）。全程不用距离最优性（sup 范数下不成立）。 -/
+theorem VI_implies_fixed_point {n : ℕ} (F : Vec n → Vec n) (Ω : Set (Vec n))
+    (P : Vec n → Vec n) (hPmem : ∀ y, P y ∈ Ω)
+    (hPchar : ∀ a z, z ∈ Ω → inner ℝ (a - P a) (z - P a) ≤ 0)
+    (ystar : Vec n) (hystar : ystar ∈ Ω) (hVI : VI F Ω ystar) :
+    ystar = P (ystar - F ystar) := by
+  let a : Vec n := ystar - F ystar
+  let d : Vec n := ystar - P a
+  have h1 : inner ℝ (a - P a) (ystar - P a) ≤ 0 := hPchar a ystar hystar
+  have h1' : inner ℝ d d ≤ inner ℝ (F ystar) d := by
+    -- a − P a = (ystar − F ystar) − P a = d − F ystar；展开减法内积后移项
+    have h1a : inner ℝ ((ystar - F ystar) - P a) d ≤ 0 := by
+      simpa only [a] using h1
+    have hrew : (ystar - F ystar) - P a = d - F ystar := by
+      dsimp [d]
+      abel
+    rw [hrew] at h1a
+    rw [vec_inner_sub_left] at h1a
+    linarith
+  have h2 : inner ℝ (F ystar) d ≤ 0 := by
+    have h2a : 0 ≤ inner ℝ (P a - ystar) (F ystar) := hVI.2 (P a) (hPmem a)
+    have h2b : 0 ≤ inner ℝ (F ystar) (P a - ystar) := by
+      rw [vec_inner_symm]
+      exact h2a
+    have h2c : inner ℝ (F ystar) d = - inner ℝ (F ystar) (P a - ystar) := by
+      rw [← vec_inner_neg_right (F ystar) (P a - ystar)]
+      congr 1
+      dsimp [d]
+      abel
+    rw [h2c]
+    linarith
+  have hsq : inner ℝ d d ≤ 0 := le_trans h1' h2
+  have hnorm : eNorm d = 0 := by
+    have hsq2 : eNorm d ^ 2 ≤ 0 := by
+      rw [eNorm_sq_eq_inner]
+      exact hsq
+    have heq : eNorm d ^ 2 = 0 := le_antisymm hsq2 (sq_nonneg (eNorm d))
+    exact sq_eq_zero_iff.mp heq
+  have hzero : d = 0 := (eNorm_eq_zero_iff d).mp hnorm
+  have hfp : ystar = P a := eq_of_sub_eq_zero (by simpa [d] using hzero)
+  simpa [a] using hfp
+
+/-- 框约束下：ystar 是 LVI 解 ⟺ ystar = boxProj l h (ystar − F(ystar)) —— 文档 (28) 对 Ω = [l,h] -/
+theorem VI_iff_fixed_point_box {n : ℕ} {l h : Vec n} (F : Vec n → Vec n) (ystar : Vec n)
+    (hlh : ∀ i, l i ≤ h i) (hystar : ∀ i, l i ≤ ystar i ∧ ystar i ≤ h i) :
+    VI F (feasibleSetBox l h) ystar ↔ ystar = boxProj l h (ystar - F ystar) := by
+  constructor
+  · intro hVI
+    exact VI_implies_fixed_point F (feasibleSetBox l h) (boxProj l h)
+      (fun y => fun i => ⟨(boxProj_mem hlh y).1 i, (boxProj_mem hlh y).2 i⟩)
+      (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
+      ystar hystar hVI
+  · intro hfp
+    exact fixed_point_implies_VI F (feasibleSetBox l h) (boxProj l h)
+      (fun y => fun i => ⟨(boxProj_mem hlh y).1 i, (boxProj_mem hlh y).2 i⟩)
+      (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
+      ystar hystar hfp
+
+/-- 连续 RNN 平衡点条件（代数层）：γ ≠ 0 时 γ(P_Ω(y−Fy) − y) = 0 ⟺ P_Ω(y−Fy) = y
+   —— 文档 (29)（ẏ = 0 的等价代数形式） -/
+theorem pnn_equilibrium {n : ℕ} (P : Vec n → Vec n) (F : Vec n → Vec n) (γ : ℝ) (y : Vec n)
+    (hγ : γ ≠ 0) :
+    (γ • (P (y - F y) - y) = 0) ↔ P (y - F y) = y := by
+  constructor
+  · intro h
+    have hsub : P (y - F y) - y = 0 := (smul_eq_zero.mp h).resolve_left hγ
+    exact eq_of_sub_eq_zero hsub
+  · intro h
+    rw [h, sub_self, smul_zero]
+
+/-- 框约束 RNN 平衡点 ⟹ LVI 解 —— 文档 (29)(28)(34) 组合 -/
+theorem box_pnn_equilibrium_implies_VI {n : ℕ} {l h : Vec n} (F : Vec n → Vec n) (y : Vec n)
+    (hlh : ∀ i, l i ≤ h i) (hfp : y = boxProj l h (y - F y)) :
+    VI F (feasibleSetBox l h) y := by
+  have hy : ∀ i, l i ≤ y i ∧ y i ≤ h i := by
+    intro i
+    rw [hfp]
+    exact ⟨(boxProj_mem hlh (y - F y)).1 i, (boxProj_mem hlh (y - F y)).2 i⟩
+  exact fixed_point_implies_VI F (feasibleSetBox l h) (boxProj l h)
+    (fun y' => fun i => ⟨(boxProj_mem hlh y').1 i, (boxProj_mem hlh y').2 i⟩)
+    (fun a z hz => @boxProj_char n l h a z (by simpa [feasibleSetBox] using hz))
+    y hy hfp
+
 end QPLVI

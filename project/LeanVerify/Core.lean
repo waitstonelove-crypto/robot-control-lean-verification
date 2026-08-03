@@ -131,6 +131,25 @@ theorem eNorm_nonneg {n : ℕ} (x : Vec n) : 0 ≤ eNorm x := by
   unfold eNorm
   exact Real.sqrt_nonneg _
 
+/-- eNorm 零判据：‖x‖ₑ = 0 ⟺ x = 0（非负项平方和为零） -/
+theorem eNorm_eq_zero_iff {n : ℕ} (x : Vec n) : eNorm x = 0 ↔ x = 0 := by
+  constructor
+  · intro h
+    have hs : 0 ≤ ∑ i, x i ^ 2 := Finset.sum_nonneg (fun i _ => sq_nonneg (x i))
+    have hsqrt : Real.sqrt (∑ i, x i ^ 2) = 0 := by simpa [eNorm] using h
+    have hsum : ∑ i, x i ^ 2 = 0 := by
+      have : (Real.sqrt (∑ i, x i ^ 2)) ^ 2 = 0 := by rw [hsqrt]; norm_num
+      simpa [Real.sq_sqrt hs] using this
+    have hzero : ∀ i, x i = 0 := by
+      intro i
+      have hi : x i ^ 2 = 0 :=
+        (Finset.sum_eq_zero_iff_of_nonneg (fun j _ => sq_nonneg (x j))).mp hsum i (Finset.mem_univ i)
+      exact sq_eq_zero_iff.mp hi
+    ext i
+    exact hzero i
+  · intro h
+    simp [h, eNorm]
+
 /-- 右伪逆 J† = Jᵀ(JJᵀ)⁻¹ —— 文档 (4) 定义（要求 JJᵀ 可逆，即 J 行满秩）。
   注意：矩阵类型在此处拼写为 `Matrix (Fin m) (Fin n) ℝ`（与 `Mat m n` 定义相等，
   两者可互换）。Mathlib v4.32.2 的类型类实例检索（DiscrTree）按类型表达式头部常量
@@ -296,6 +315,18 @@ lemma vec_inner_neg_left {n : ℕ} (x y : Vec n) : inner ℝ (-x) y = - inner �
 /-- 负号提取（右）：⟨x, −y⟩ = −⟨x, y⟩ -/
 lemma vec_inner_neg_right {n : ℕ} (x y : Vec n) : inner ℝ x (-y) = - inner ℝ x y := by
   rw [vec_inner_symm, vec_inner_neg_left, vec_inner_symm]
+
+/-- 减法提取：⟨x−y, z⟩ = ⟨x,z⟩ − ⟨y,z⟩ -/
+lemma vec_inner_sub_left {n : ℕ} (a b x : Vec n) :
+    inner ℝ (a - b) x = inner ℝ a x - inner ℝ b x := by
+  rw [sub_eq_add_neg, vec_inner_add_left, vec_inner_neg_left]
+  ring
+
+/-- 减法提取（右）：⟨x, a−b⟩ = ⟨x,a⟩ − ⟨x,b⟩ -/
+lemma vec_inner_sub_right {n : ℕ} (x a b : Vec n) :
+    inner ℝ x (a - b) = inner ℝ x a - inner ℝ x b := by
+  rw [sub_eq_add_neg, vec_inner_add_right, vec_inner_neg_right]
+  ring
 
 /-- 伴随性：⟨Ax, y⟩ = ⟨x, Aᵀy⟩（逐分量展开硬算） -/
 lemma vec_mulVec_adjoint {m n : ℕ} (A : Matrix (Fin m) (Fin n) ℝ) (x : Vec n) (y : Vec m) :
