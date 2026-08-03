@@ -1,4 +1,5 @@
 import LeanVerify.QP_LVI_PNN
+/-! # 收敛性假设与应用链：投影动力系统全局指数收敛（axiom，引用 Gao 2003）与 Lyapunov 应用链。 -/
 
 open Matrix
 open scoped Topology

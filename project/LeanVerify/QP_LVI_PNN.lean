@@ -1,6 +1,8 @@
 import LeanVerify.Core
 import Mathlib.Analysis.Matrix.Normed
 
+/-! # QP/LVI/投影神经网络：可行域凸性、一阶最优性、KKT、LVI 不动点等价、离散迭代（文档 (20)-(31)）。 -/
+
 open Matrix Filter
 open scoped Topology Matrix.Norms.Operator NNReal
 

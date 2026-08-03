@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: wj
 -/
 import LeanVerify.Core
+/-! # Accel 加速度级推广：乘积法则、加速度伪逆/通解、PD 误差动态、欧拉积分（文档 (A)-(F)）。 -/
 
 /-!
 # Accel：加速度级运动学与逆解（下篇）

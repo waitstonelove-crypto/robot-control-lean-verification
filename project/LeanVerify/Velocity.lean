@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: wj
 -/
 import LeanVerify.Core
+/-! # Velocity 速度级控制链：控制律、误差动态、关节极限函数与分段梯度（文档 (4)-(19)）。 -/
 
 /-!
 # Velocity：上篇核心链 —— 控制律 / 误差动态 / 梯度投影 / 关节极限 h 函数

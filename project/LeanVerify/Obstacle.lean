@@ -1,4 +1,5 @@
 import LeanVerify.Core
+/-! # 避障几何与 Li 函数：最近点参数、距离判定、Li 函数（文档 (35)-(39)）。 -/
 
 open Matrix
 

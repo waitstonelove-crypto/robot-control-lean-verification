@@ -1,4 +1,5 @@
 import Mathlib
+/-! # Core 基础引理库：框投影、右伪逆、零空间投影、欧氏范数 eNorm 与内积引理。 -/
 
 open Matrix
 open scoped BigOperators

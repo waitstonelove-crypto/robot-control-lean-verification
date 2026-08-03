@@ -1,6 +1,8 @@
 import LeanVerify.Core
 import LeanVerify.QP_LVI_PNN
 
+/-! # 论文公式验证：Ma et al. TSMC 2023 的 ⊗ 算子、ASOA、VAM、η 统一化、拉格朗日/RNN/单调性。 -/
+
 open Matrix
 open QPLVI
 
