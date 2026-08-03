@@ -14,7 +14,13 @@
 - 工作目录：项目根 `D:/AI/lean/project`
 - 提交在仓库根 `D:/AI/lean` 执行（仓库根是 git root，含 docs/）
 - 证明内引理名如与 Mathlib 实际 API 不符，用 `#check` / `#find`（VS Code lean4 扩展）定位替代引理——这是 Lean 开发的正常迭代，不是计划偏差
-- Lean 约定：`Vec n := Fin n → ℝ`，`Mat m n := Fin m → Fin n → ℝ`；`A * x` 即 `A.mulVec x`（列向量约定）；`inner x y` 标准内积；`1` 为单位矩阵；`Jᵀ` 为转置
+- Lean 约定：`Vec n := Fin n → ℝ`，`Mat m n := Fin m → Fin n → ℝ`；`inner ℝ x y` 标准内积（显式场参数）；`1` 为单位矩阵；`Jᵀ` 为转置
+- **执行期实证修正（Task 1-2 发现，已生效）**：
+  - 矩阵运算（乘法/求逆/转置引理）的语句**必须**用 `Matrix (Fin m) (Fin n) ℝ` 拼写——`Mat m n` 缩写使类型类实例检索失败（DiscrTree 按头部常量匹配）
+  - 矩阵×向量**没有 `*` 记号**，一律用 `J *ᵥ x`（即 `Matrix.mulVec`）；计划文本中的 `J * x` 均指 `J *ᵥ x`
+  - Mathlib 对 `Vec n` 的范数是 **sup 范数**，与欧氏内积不相容；欧氏范数用 `eNorm`（Core 已定义），计划文本中"最小范数/配平方/VAM 展开"类定理的 `‖·‖` 均指 `eNorm`
+  - `[LinearOrder]` 引理显式传参数（裸调用卡类型合成）
+  - `Matrix` 可逆引理族：`Matrix.mul_nonsing_inv`/`nonsing_inv_mul`（需 `IsUnit A.det`）+ 无条件 `Matrix.transpose_nonsing_inv`，经 `Matrix.isUnit_iff_isUnit_det` 转换
 - 定理语句先用 `by sorry` 占位跑 `lake build` 确认语句类型正确（此时允许出现 warning），随后填证明，最终 `lake build` 必须无任何 `sorry` 警告
 
 **文件结构：**
