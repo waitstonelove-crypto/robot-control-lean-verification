@@ -127,4 +127,64 @@ theorem accel_general_solution {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h :
     J *ᵥ (rpinv J h *ᵥ w + nullProj J h *ᵥ φ) = w := by
   exact general_solution J h w φ
 
+/-- PD 期望加速度的代数闭合：p̈_des = p̈_d + k_d ė + k_p e 时，
+   p̈_des − p̈_d = k_d ė + k_p e —— 文档 (B.4)（代数层；二阶 ODE 显式解不在验证范围） -/
+theorem pd_error_algebra {m : ℕ} (edd edd_des e ed : Vec m) (kd kp : ℝ)
+    (hpd : edd_des = edd + kd • ed + kp • e) :
+    edd_des - edd = kd • ed + kp • e := by
+  rw [hpd]
+  abel
+
+/-- 完整加速度级控制律闭环验证：p̈ = p̈_d + k_d ė + k_p e
+   —— 文档 (B.5)（p̈ = Jθ̈ + J̇θ̇ 的代数展开 + 通解 (B.2) 组合）。
+   记号：Jdot 即 J̇（带结合符的标识符 Lean 词法器不接受，故用 Jdot）。 -/
+theorem pd_control_law_closed {m n : ℕ} (J Jdot : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit (J * Jᵀ))
+    (pdd ed e : Vec m) (θd : Vec n) (kd kp : ℝ) (φ : Vec n) :
+    Jdot *ᵥ θd +
+        J *ᵥ (rpinv J h *ᵥ (pdd + kd • ed + kp • e - Jdot *ᵥ θd) +
+          nullProj J h *ᵥ φ) =
+      pdd + kd • ed + kp • e := by
+  rw [accel_general_solution J h (pdd + kd • ed + kp • e - Jdot *ᵥ θd) φ]
+  abel
+
+/-- 恒定加速度下二阶欧拉精确性：θ̇(t) = θ̇₀ + θ̈t 且 θ(t) = θ₀ + θ̇₀t + ½θ̈t²
+   满足各自的导数关系 —— 文档 (E) -/
+theorem euler_constant_accel {n : ℕ} (θ0 θd0 θdd : Vec n) :
+    (∀ t, HasDerivAt (fun s : ℝ => θd0 + s • θdd) θdd t) ∧
+    (∀ t, HasDerivAt (fun s : ℝ => θ0 + s • θd0 + (s ^ 2 / 2) • θdd) (θd0 + t • θdd) t) := by
+  constructor
+  · intro t
+    -- θd0 常数（导数 0）+ s ↦ s•θdd 导数 θdd（id 的导数 1，1•θdd = θdd）。
+    -- 注：不能 simpa —— simp 引理 hasDerivAt_const_add_iff 会把目标中 `θd0 +` 吸收掉
+    -- （函数侧是逐点 λ 和形式时不匹配），故用 convert 展开逐点加后只剩导数方程 0 + θdd = θdd。
+    have h1 : HasDerivAt (fun s : ℝ => θd0) 0 t := hasDerivAt_const t θd0
+    have h2 : HasDerivAt (fun s : ℝ => s • θdd) θdd t := by
+      simpa using (hasDerivAt_id t).smul_const θdd
+    have hboth : HasDerivAt (fun s : ℝ => θd0 + s • θdd) (0 + θdd) t := h1.add h2
+    convert hboth using 1
+    simp
+  · intro t
+    -- s ↦ s•θd0 导数 θd0
+    have h1 : HasDerivAt (fun s : ℝ => s • θd0) θd0 t := by
+      simpa using (hasDerivAt_id t).smul_const θd0
+    -- 标量导数：d/dt (s²/2) = t。
+    -- 注：HasDerivAt.pow/.mul 走 NormedAlgebra 模实例，与语句目标的标准模实例不定义相等，
+    -- 故 s² 的导数用 hasDerivAt_pow（标准实例）；div_const 的结论（代数实例）经 convert
+    -- 桥接回标准实例，剩余算术 2t/2 = t 由 simp [div_eq_mul_inv, mul_comm] 归一化
+    -- （mul_comm 非默认 simp 引理，须显式给出）。
+    have hpow : HasDerivAt (fun s : ℝ => s ^ 2) (2 * t) t := by
+      simpa using hasDerivAt_pow 2 t
+    have hdiv : HasDerivAt (fun s : ℝ => s ^ 2 / 2) (2 * t / 2) t := hpow.div_const 2
+    have hsc : HasDerivAt (fun s : ℝ => (s ^ 2) / 2) t t := by
+      convert hdiv using 1
+      simp [div_eq_mul_inv, mul_comm]
+    -- s ↦ (s²/2)•θdd 导数 t•θdd（smul_const：标量函数乘常数向量，Vec 模实例唯一）
+    have h2 : HasDerivAt (fun s : ℝ => (s ^ 2 / 2) • θdd) (t • θdd) t :=
+      hsc.smul_const θdd
+    -- 组装：θ0 常数 + 两项，导数 (0 + θd0) + t•θdd = θd0 + t•θdd（convert 同第一分支）
+    have hboth : HasDerivAt (fun s : ℝ => θ0 + s • θd0 + (s ^ 2 / 2) • θdd)
+        ((0 + θd0) + t • θdd) t := ((hasDerivAt_const t θ0).add h1).add h2
+    convert hboth using 1
+    simp
+
 end Accel
