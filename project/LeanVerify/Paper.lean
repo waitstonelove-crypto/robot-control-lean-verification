@@ -1,0 +1,65 @@
+import LeanVerify.Core
+
+open Matrix
+
+namespace Paper
+
+/-- ⊗ 算子：s ⊗ h = [s₁·h, …, sₙ·h]（h 为 m 维列向量，sᵢ 为 s 的第 i 列） —— 论文 (15) -/
+noncomputable def otimes {m n : ℕ} (s : Matrix (Fin m) (Fin n) ℝ) (h : Vec m) : Vec n :=
+  fun j => inner ℝ (fun i => s i j) h
+
+/-- 核心恒等式：(s ⊗ h)·x = hᵀ·(s·x) = ⟨h, sx⟩ —— 论文 (14)→(15) 的转换依据 -/
+theorem otimes_mul {m n : ℕ} (s : Matrix (Fin m) (Fin n) ℝ) (h : Vec m) (x : Vec n) :
+    inner ℝ (otimes s h) x = inner ℝ h (s *ᵥ x) := by
+  rw [inner_vec_eq_sum, inner_vec_eq_sum]
+  calc
+    ∑ j, (∑ i, s i j * h i) * x j = ∑ j, ∑ i, s i j * h i * x j := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      rw [Finset.sum_mul]
+    _ = ∑ i, ∑ j, s i j * h i * x j := by rw [Finset.sum_comm]
+    _ = ∑ i, h i * (∑ j, s i j * x j) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      calc
+        ∑ j, s i j * h i * x j = ∑ j, h i * (s i j * x j) := by
+          apply Finset.sum_congr rfl
+          intro j hj
+          ring
+        _ = h i * ∑ j, s i j * x j := by rw [← Finset.mul_sum]
+    _ = inner ℝ h (s *ᵥ x) := by
+      simp [Matrix.mulVec, dotProduct]
+
+/-- ASOA 约束推导（论文 (13)→(15)）：‖ṙ_CU‖τ + ‖r̈_CU‖τ²/2 ≤ d_GJK − d_2
+   在 u_CO 单位且投影沿 u_CO 方向非负（‖ṙ_CU‖ = ṙ_C·u_CO，‖r̈_CU‖ = r̈_C·u_CO）下，
+   代入 ṙ_C = J_Cθ̇、r̈_C = J̇_Cθ̇ + J_Cθ̈（论文 (14)），移项得 (J_C ⊗ u_CO)θ̈ ≤ b（论文 (15)(16)）。
+   注：u 单位与非负投影假设由控制律保证，本定理以点积形式陈述其代数实质。 -/
+theorem asoa_basic_ineq {m n : ℕ} (JC JdC : Matrix (Fin m) (Fin n) ℝ) (u : Vec m) (θd θdd : Vec n)
+    (dGJK d2 τ : ℝ) (hτ : 0 < τ)
+    (hineq : (inner ℝ (JC *ᵥ θd) u) * τ + (inner ℝ (JdC *ᵥ θd + JC *ᵥ θdd) u) * τ ^ 2 / 2 ≤ dGJK - d2) :
+    inner ℝ (otimes JC u) θdd ≤ (2 * (dGJK - d2) - τ ^ 2 * inner ℝ (JdC *ᵥ θd) u - 2 * τ * inner ℝ (JC *ᵥ θd) u) / τ ^ 2 := by
+  have hsplit : inner ℝ (JdC *ᵥ θd + JC *ᵥ θdd) u = inner ℝ (JdC *ᵥ θd) u + inner ℝ (JC *ᵥ θdd) u := by
+    rw [vec_inner_add_left]
+  have hineq' : (inner ℝ (JC *ᵥ θdd) u) * τ ^ 2 / 2 ≤
+      dGJK - d2 - (inner ℝ (JdC *ᵥ θd) u) * τ ^ 2 / 2 - (inner ℝ (JC *ᵥ θd) u) * τ := by
+    nlinarith [hineq, hsplit]
+  have hmain : inner ℝ (JC *ᵥ θdd) u ≤
+      (2 * (dGJK - d2) - τ ^ 2 * inner ℝ (JdC *ᵥ θd) u - 2 * τ * inner ℝ (JC *ᵥ θd) u) / τ ^ 2 := by
+    rw [le_div_iff₀ (sq_pos_of_pos hτ)]
+    nlinarith [hineq']
+  rw [otimes_mul, vec_inner_symm]
+  exact hmain
+
+/-- b 的定义（论文 (16)）：b = [2(d_GJK − d_2) − τ²⟨J̇_Cθ̇,u⟩ − 2τ⟨J_Cθ̇,u⟩]/τ² -/
+noncomputable def asoaB {m n : ℕ} (JC JdC : Matrix (Fin m) (Fin n) ℝ) (u : Vec m) (θd : Vec n)
+    (dGJK d2 τ : ℝ) : ℝ :=
+  (2 * (dGJK - d2) - τ ^ 2 * inner ℝ (JdC *ᵥ θd) u - 2 * τ * inner ℝ (JC *ᵥ θd) u) / τ ^ 2
+
+/-- 最终 ASOA 约束（论文 (17)）：(J_C ⊗ u_CO)θ̈ ≤ b -/
+theorem asoa_constraint {m n : ℕ} (JC JdC : Matrix (Fin m) (Fin n) ℝ) (u : Vec m) (θd θdd : Vec n)
+    (dGJK d2 τ : ℝ) (hτ : 0 < τ)
+    (hineq : (inner ℝ (JC *ᵥ θd) u) * τ + (inner ℝ (JdC *ᵥ θd + JC *ᵥ θdd) u) * τ ^ 2 / 2 ≤ dGJK - d2) :
+    inner ℝ (otimes JC u) θdd ≤ asoaB JC JdC u θd dGJK d2 τ := by
+  simpa [asoaB] using asoa_basic_ineq JC JdC u θd θdd dGJK d2 τ hτ hineq
+
+end Paper
