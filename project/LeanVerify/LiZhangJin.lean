@@ -238,34 +238,11 @@ axiom lasalle_global_convergence {m : ℕ} (e : ℝ → Vec m)
     (hinv : ∀ x : Vec m, Vdot x = 0 → x = 0) :
     Tendsto e atTop (𝓝 0)
 
-/-- V = ‖e‖²/2 沿轨迹的导数：d/dt (½‖e(t)‖²) = ⟨e(t), ė(t)⟩（分量展开 + 链式法则） -/
-theorem Vdot_deriv {m : ℕ} (e : ℝ → Vec m) (ed : Vec m) (t : ℝ)
-    (hflow : HasFDerivAt e (ContinuousLinearMap.toSpanSingleton ℝ ed) t) :
+/-- V = ‖e‖²/2 沿轨迹的导数（逐分量导数版本）：
+   d/dt (½‖e(t)‖²) = ⟨e(t), ed⟩，前提是 e 的每个分量导数存在且为 ed i -/
+theorem Vdot_deriv_comp {m : ℕ} (e : ℝ → Vec m) (ed : Vec m) (t : ℝ)
+    (hcomp : ∀ i : Fin m, HasDerivAt (fun s : ℝ => (e s) i) (ed i) t) :
     HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (inner ℝ (e t) ed) t := by
-  have hcomp : ∀ i : Fin m, HasDerivAt (fun s : ℝ => (e s) i) (ed i) t := by
-    intro i
-    let π : Vec m →L[ℝ] ℝ := ContinuousLinearMap.proj i
-    have hgdiff : DifferentiableAt ℝ (fun v : Vec m => π v) (e t) := π.differentiableAt
-    have hediff : DifferentiableAt ℝ e t := hflow.differentiableAt
-    have hfc := fderiv_comp (g := fun v : Vec m => π v) (f := e) (x := t) hgdiff hediff
-    have hπ : fderiv ℝ (fun v : Vec m => π v) (e t) = π := π.fderiv
-    have hfe : fderiv ℝ e t = ContinuousLinearMap.toSpanSingleton ℝ ed := hflow.fderiv
-    have hcoord : fderiv ℝ (fun s : ℝ => (e s) i) t = ContinuousLinearMap.toSpanSingleton ℝ (ed i) := by
-      calc
-        fderiv ℝ (fun s : ℝ => (e s) i) t = fderiv ℝ (fun s : ℝ => π (e s)) t := by rfl
-        _ = (fderiv ℝ (fun v : Vec m => π v) (e t)).comp (fderiv ℝ e t) := hfc
-        _ = π.comp (ContinuousLinearMap.toSpanSingleton ℝ ed) := by rw [hπ, hfe]
-        _ = ContinuousLinearMap.toSpanSingleton ℝ (ed i) := by
-          ext u
-          simp [ContinuousLinearMap.comp_apply, ContinuousLinearMap.toSpanSingleton_apply, π]
-    have hdiff : DifferentiableAt ℝ (fun s : ℝ => (e s) i) t := by
-      fun_prop
-    have hder : deriv (fun s : ℝ => (e s) i) t = ed i := by
-      rw [show deriv (fun s : ℝ => (e s) i) t = (fderiv ℝ (fun s : ℝ => (e s) i) t) 1 by
-        rfl]
-      rw [hcoord]
-      simp [ContinuousLinearMap.toSpanSingleton_apply]
-    simpa [hder] using hdiff.hasDerivAt
   have hmul : ∀ i : Fin m, HasDerivAt (fun s : ℝ => (e s) i * (e s) i) (2 * (e t) i * ed i) t := by
     intro i
     have hm := (hcomp i).mul (hcomp i)
@@ -291,6 +268,40 @@ theorem Vdot_deriv {m : ℕ} (e : ℝ → Vec m) (ed : Vec m) (t : ℝ)
   · funext s
     rw [hsq]
   · exact hval.symm
+
+/-- HasFDerivAt 的分量导数：HasFDerivAt w (toSpanSingleton ed) t ⟹ 每分量 (w s) j 的导数为 ed j -/
+lemma coord_deriv_of_span {m : ℕ} (w : ℝ → Vec m) (ed : Vec m) (t : ℝ)
+    (hflow : HasFDerivAt w (ContinuousLinearMap.toSpanSingleton ℝ ed) t) :
+    ∀ j : Fin m, HasDerivAt (fun s : ℝ => (w s) j) (ed j) t := by
+  intro j
+  let π : Vec m →L[ℝ] ℝ := ContinuousLinearMap.proj j
+  have hgdiff : DifferentiableAt ℝ (fun v : Vec m => π v) (w t) := π.differentiableAt
+  have hediff : DifferentiableAt ℝ w t := hflow.differentiableAt
+  have hfc := fderiv_comp (g := fun v : Vec m => π v) (f := w) (x := t) hgdiff hediff
+  have hπ : fderiv ℝ (fun v : Vec m => π v) (w t) = π := π.fderiv
+  have hfe : fderiv ℝ w t = ContinuousLinearMap.toSpanSingleton ℝ ed := hflow.fderiv
+  have hcoord : fderiv ℝ (fun s : ℝ => (w s) j) t = ContinuousLinearMap.toSpanSingleton ℝ (ed j) := by
+    calc
+      fderiv ℝ (fun s : ℝ => (w s) j) t = fderiv ℝ (fun s : ℝ => π (w s)) t := by rfl
+      _ = (fderiv ℝ (fun v : Vec m => π v) (w t)).comp (fderiv ℝ w t) := hfc
+      _ = π.comp (ContinuousLinearMap.toSpanSingleton ℝ ed) := by rw [hπ, hfe]
+      _ = ContinuousLinearMap.toSpanSingleton ℝ (ed j) := by
+        ext u
+        simp [ContinuousLinearMap.comp_apply, ContinuousLinearMap.toSpanSingleton_apply, π]
+  have hdiff : DifferentiableAt ℝ (fun s : ℝ => (w s) j) t := by
+    fun_prop
+  have hder : deriv (fun s : ℝ => (w s) j) t = ed j := by
+    rw [show deriv (fun s : ℝ => (w s) j) t = (fderiv ℝ (fun s : ℝ => (w s) j) t) 1 by
+      rfl]
+    rw [hcoord]
+    simp [ContinuousLinearMap.toSpanSingleton_apply]
+  simpa [hder] using hdiff.hasDerivAt
+
+/-- V = ‖e‖²/2 沿轨迹的导数：d/dt (½‖e(t)‖²) = ⟨e(t), ė(t)⟩（HasFDerivAt 版本） -/
+theorem Vdot_deriv {m : ℕ} (e : ℝ → Vec m) (ed : Vec m) (t : ℝ)
+    (hflow : HasFDerivAt e (ContinuousLinearMap.toSpanSingleton ℝ ed) t) :
+    HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (inner ℝ (e t) ed) t := by
+  exact Vdot_deriv_comp e ed t (coord_deriv_of_span e ed t hflow)
 
 /-- Theorem 1（论文）：控制律 (19) u = P_Ω(Jᵀ(r_d−r)/γ) 下，误差 e = r − r_d 全局收敛到 0。
    前提：0 ∈ int(Ω)（eNorm 球形式，任意集无需凸性）、J 行满秩。
@@ -325,3 +336,321 @@ theorem theorem1 {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
   exact lasalle_global_convergence e Vdot hVd hneg hinv
 
 end LiZhangJin
+
+/-- 论文 (42) 的代数核心：x = JJᵀw − ṙ_d 时，⟨x, JJᵀ·((ṙ_d − JJᵀw)/ζ)⟩ = −(1/ζ)⟨x, JJᵀ·x⟩
+   （(41b) ẇ = (ṙ_d − JJᵀw)/γ，故 V̇₁ = ⟨JJᵀw − ṙ_d, JJᵀẇ⟩ = −(1/γ)⟨x, JJᵀx⟩） -/
+theorem V1_dot_algebra {m : ℕ} (JJt : Matrix (Fin m) (Fin m) ℝ) (rd w : Vec m) (ζ : ℝ) :
+    inner ℝ (JJt *ᵥ w - rd) (JJt *ᵥ (vecDiv (rd - JJt *ᵥ w) ζ)) =
+      -(1 / ζ) * inner ℝ (JJt *ᵥ w - rd) (JJt *ᵥ (JJt *ᵥ w - rd)) := by
+  let x : Vec m := JJt *ᵥ w - rd
+  have hx : JJt *ᵥ w - rd = x := rfl
+  have hneg : rd - JJt *ᵥ w = -x := by
+    ext i
+    dsimp [x]
+    ring
+  have hmul : ∀ y : Vec m, JJt *ᵥ (vecDiv y ζ) = vecDiv (JJt *ᵥ y) ζ := by
+    intro y
+    ext i
+    simp [vecDiv, Matrix.mulVec]
+    rw [← Finset.sum_div]
+    apply Finset.sum_congr rfl
+    intro j hj
+    ring
+  have hmulneg : JJt *ᵥ (-x) = -(JJt *ᵥ x) := by
+    ext i
+    simp [Matrix.mulVec, Finset.sum_neg_distrib]
+    apply Finset.sum_congr rfl
+    intro j hj
+    ring
+  have h1 : JJt *ᵥ (vecDiv (rd - JJt *ᵥ w) ζ) = vecDiv (JJt *ᵥ (-x)) ζ := by
+    rw [hneg, hmul]
+  have hinner : inner ℝ x (vecDiv (JJt *ᵥ (-x)) ζ) = -(1 / ζ) * inner ℝ x (JJt *ᵥ x) := by
+    rw [inner_vec_eq_sum, inner_vec_eq_sum]
+    calc
+      ∑ i, x i * (vecDiv (JJt *ᵥ (-x)) ζ) i = ∑ i, x i * ((JJt *ᵥ (-x)) i / ζ) := by
+        apply Finset.sum_congr rfl
+        intro i hi
+        rfl
+      _ = (1 / ζ) * ∑ i, x i * (JJt *ᵥ (-x)) i := by
+        rw [Finset.mul_sum]
+        apply Finset.sum_congr rfl
+        intro i hi
+        ring
+      _ = (1 / ζ) * inner ℝ x (JJt *ᵥ (-x)) := by rw [inner_vec_eq_sum]
+      _ = -(1 / ζ) * inner ℝ x (JJt *ᵥ x) := by
+        rw [hmulneg, vec_inner_neg_right]
+  calc
+    inner ℝ (JJt *ᵥ w - rd) (JJt *ᵥ (vecDiv (rd - JJt *ᵥ w) ζ))
+        = inner ℝ x (JJt *ᵥ (vecDiv (rd - JJt *ᵥ w) ζ)) := by rw [hx]
+    _ = inner ℝ x (vecDiv (JJt *ᵥ (-x)) ζ) := by rw [h1]
+    _ = -(1 / ζ) * inner ℝ x (JJt *ᵥ x) := hinner
+    _ = -(1 / ζ) * inner ℝ (JJt *ᵥ w - rd) (JJt *ᵥ (JJt *ᵥ w - rd)) := by rw [hx]
+
+/-- 论文 (42)：V₁ 衰减（强单调条件 c：⟨x, JJᵀx⟩ ≥ c‖x‖²）⟹ −(1/ζ)⟨x, JJᵀx⟩ ≤ −(2c/ζ)·½‖x‖² -/
+theorem V1_decay {m : ℕ} (JJt : Matrix (Fin m) (Fin m) ℝ) (x : Vec m) (ζ c : ℝ)
+    (hζ : 0 < ζ) (hmono : c * eNorm x ^ 2 ≤ inner ℝ x (JJt *ᵥ x)) :
+    -(1 / ζ) * inner ℝ x (JJt *ᵥ x) ≤ -(2 * c / ζ) * ((1 / 2) * eNorm x ^ 2) := by
+  nlinarith [hmono, hζ]
+
+/-- Gronwall 型指数收敛（axiom）：V = ½‖x − x*‖² 满足 V̇ = Vdot(x(t)) 且 V̇ ≤ −cV
+   ⟹ x(t) → x*（t → ∞，指数衰减）。
+   引用：Gronwall 不等式 / 比较引理（经典微分方程理论，见 Khalil, Nonlinear Systems 定理 3.4）。 -/
+axiom exp_convergence {m : ℕ} (x : ℝ → Vec m) (xstar : Vec m) (Vdot : Vec m → ℝ) (c : ℝ)
+    (hc : 0 < c)
+    (hVdot : ∀ t, HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (x s - xstar) ^ 2) (Vdot (x t)) t)
+    (hdec : ∀ t, Vdot (x t) ≤ -c * ((1 / 2) * eNorm (x t - xstar) ^ 2)) :
+    Tendsto x atTop (𝓝 xstar)
+
+/-- 论文 (48)（平移版投影不等式）：y ∈ Ω 时 ‖P z − y‖ₑ² ≤ 2⟨z − y, P z − y⟩
+   （从 ‖Pz − z‖ ≤ ‖y − z‖ 配平方；y = 0 特例即 (25)） -/
+theorem proj_sq_ineq_at {n : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (y0 : Vec n) (hy0 : y0 ∈ Ω) (z : Vec n) :
+    eNorm (P z - y0) ^ 2 ≤ 2 * inner ℝ (z - y0) (P z - y0) := by
+  have h1 : eNorm (P z - z) ≤ eNorm (y0 - z) := hPdist z y0 hy0
+  have h1sq : eNorm (P z - z) ^ 2 ≤ eNorm (y0 - z) ^ 2 := by
+    exact sq_le_sq_of_nonneg (eNorm_nonneg (P z - z)) (eNorm_nonneg (y0 - z)) h1
+  have hsub : P z - z = (P z - y0) - (z - y0) := by abel
+  have hsq := eNorm_sub_sq (P z - y0) (z - y0)
+  have hsq' : eNorm (P z - z) ^ 2 = eNorm (P z - y0) ^ 2 - 2 * inner ℝ (P z - y0) (z - y0) + eNorm (z - y0) ^ 2 := by
+    simpa [hsub] using hsq
+  have hyn : eNorm (y0 - z) = eNorm (z - y0) := by
+    simpa using eNorm_neg (z - y0)
+  have hsq2 : eNorm (P z - y0) ^ 2 - 2 * inner ℝ (P z - y0) (z - y0) + eNorm (z - y0) ^ 2 ≤ eNorm (z - y0) ^ 2 := by
+    rw [← hsq']
+    rw [hyn] at h1sq
+    exact h1sq
+  have hcore : eNorm (P z - y0) ^ 2 ≤ 2 * inner ℝ (P z - y0) (z - y0) := by
+    nlinarith
+  rw [vec_inner_symm (P z - y0) (z - y0)]
+  exact hcore
+
+/-- 论文 (46) 的代数核心：z = −Jᵀe/γ + y 时，⟨e, J(P z − y)⟩ = −γ⟨z − y, P z − y⟩
+   （伴随 + z 定义；论文原文此处丢失 γ 因子，不影响 V̇₂ ≤ 0 结论，按正确版验证） -/
+theorem V2_dot_algebra {n m : ℕ} (P : Vec n → Vec n) (J : Matrix (Fin m) (Fin n) ℝ)
+    (y : Vec n) (γ : ℝ) (hγ : 0 < γ) (e : Vec m) :
+    inner ℝ e (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) - y)) =
+      -γ * inner ℝ (vecDiv (-((Jᵀ) *ᵥ e)) γ) (P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) - y) := by
+  let z : Vec n := vecDiv (-((Jᵀ) *ᵥ e)) γ + y
+  have hJTe : (Jᵀ) *ᵥ e = -(γ • (z - y)) := by
+    ext i
+    dsimp [z, vecDiv]
+    field_simp [hγ.ne']
+  have h1 : inner ℝ e (J *ᵥ (P z - y)) = inner ℝ ((Jᵀ) *ᵥ e) (P z - y) := by
+    rw [vec_inner_symm e (J *ᵥ (P z - y))]
+    rw [vec_mulVec_adjoint J (P z - y) e]
+    rw [vec_inner_symm (P z - y) ((Jᵀ) *ᵥ e)]
+  calc
+    inner ℝ e (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) - y))
+        = inner ℝ e (J *ᵥ (P z - y)) := by rfl
+    _ = inner ℝ ((Jᵀ) *ᵥ e) (P z - y) := h1
+    _ = -γ * inner ℝ (z - y) (P z - y) := by
+      rw [hJTe]
+      rw [vec_inner_neg_left, vec_inner_smul_left]
+    _ = -γ * inner ℝ (vecDiv (-((Jᵀ) *ᵥ e)) γ) (P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) - y) := by
+      congr 1
+      · congr 1
+        dsimp [z]
+        abel
+      · rfl
+
+/-- 论文 (50)：V̇₂ = 0 ⟹ P(z) = y（y ∈ Ω 时；从 (48) 与 (46) 的代数） -/
+theorem V2dot_zero_implies_Pzero_at {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (y : Vec n) (hy : y ∈ Ω) (J : Matrix (Fin m) (Fin n) ℝ) (γ : ℝ) (hγ : 0 < γ) (e : Vec m)
+    (hV : inner ℝ e (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) - y)) = 0) :
+    P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) = y := by
+  let z : Vec n := vecDiv (-((Jᵀ) *ᵥ e)) γ + y
+  have hineq : eNorm (P z - y) ^ 2 ≤ 2 * inner ℝ (z - y) (P z - y) := proj_sq_ineq_at P Ω hPdist y hy z
+  have hinner : inner ℝ e (J *ᵥ (P z - y)) = -γ * inner ℝ (z - y) (P z - y) := by
+    simpa [z] using V2_dot_algebra P J y γ hγ e
+  have hVz : inner ℝ e (J *ᵥ (P z - y)) = 0 := by simpa [z] using hV
+  have hzz : inner ℝ (z - y) (P z - y) = 0 := by
+    rw [hinner] at hVz
+    nlinarith [hVz, hγ]
+  have hsq : eNorm (P z - y) ^ 2 ≤ 0 := by nlinarith [hineq, hzz]
+  have hPz0 : eNorm (P z - y) = 0 := sq_eq_zero_iff.mp (le_antisymm hsq (sq_nonneg _))
+  have hPzy : P z - y = 0 := (eNorm_eq_zero_iff (P z - y)).mp hPz0
+  simpa [z] using (sub_eq_zero.mp hPzy)
+
+/-- 论文 (51) 的核心（平移版）：P(z) = y 且 y ∈ int(Ω)（eNorm 球形式，球心 y）⟹ z = y。
+   论证：z ≠ y 时取 y' = y + ρ(z−y)/(2‖z−y‖) ∈ Ω（y 的球邻域内，沿 z−y 方向离开 y），
+   得 ‖y'−z‖ = ‖z−y‖ − ρ/2 < ‖y−z‖，与投影最小距离 ‖y−z‖ ≤ ‖y'−z‖ 矛盾（无极限，纯代数）。 -/
+theorem proj_eq_y_implies_z_eq_y {n : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (y : Vec n) (hIntBall : ∃ ρ₀ > 0, ∀ y' : Vec n, eNorm (y' - y) ≤ ρ₀ → y' ∈ Ω)
+    (z : Vec n) (hPz : P z = y) :
+    z = y := by
+  rcases hIntBall with ⟨ρ₀, hρ₀, hball⟩
+  by_contra hne
+  have hw0 : 0 < eNorm (z - y) :=
+    lt_of_le_of_ne (eNorm_nonneg _) (fun h => hne ((eNorm_eq_zero_iff (z - y)).mp h))
+  let ρ : ℝ := min (ρ₀ / 2) (eNorm (z - y) / 2)
+  have hρ0 : 0 < ρ := by
+    dsimp [ρ]
+    exact lt_min (div_pos hρ₀ (by norm_num)) (div_pos hw0 (by norm_num))
+  have hρle : ρ ≤ ρ₀ := by
+    dsimp [ρ]
+    linarith [min_le_left (ρ₀ / 2) (eNorm (z - y) / 2)]
+  have hρlt : ρ < 2 * eNorm (z - y) := by
+    dsimp [ρ]
+    linarith [min_le_right (ρ₀ / 2) (eNorm (z - y) / 2), hw0]
+  let y0 : Vec n := y + (ρ / (2 * eNorm (z - y))) • (z - y)
+  have hny : eNorm (y0 - y) = ρ / 2 := by
+    dsimp [y0]
+    rw [eNorm_smul]
+    have hden : 0 < 2 * eNorm (z - y) := by positivity
+    rw [abs_div, abs_of_pos hρ, abs_of_pos hden]
+    field_simp [ne_of_gt hden]
+  have hy0mem : y0 ∈ Ω := by
+    apply hball
+    linarith [hny]
+  have hdist : eNorm (y - z) ≤ eNorm (y0 - z) := by
+    have h1 := hPdist z y0 hy0mem
+    simpa [hPz] using h1
+  have hstep : y0 - z = (-1 + ρ / (2 * eNorm (z - y))) • (z - y) := by
+    dsimp [y0]
+    ext i
+    simp
+    ring
+  have hnorm0 : eNorm (y0 - z) = eNorm (z - y) - ρ / 2 := by
+    rw [hstep]
+    rw [eNorm_smul]
+    have hden : 0 < 2 * eNorm (z - y) := by positivity
+    have hlt1 : ρ / (2 * eNorm (z - y)) < 1 := by
+      rw [div_lt_one hden]
+      exact hρlt
+    have hneg : -1 + ρ / (2 * eNorm (z - y)) < 0 := by
+      linarith
+    have habs : |(-1 + ρ / (2 * eNorm (z - y)))| = 1 - ρ / (2 * eNorm (z - y)) := by
+      rw [abs_of_neg hneg]
+      ring
+    rw [habs]
+    field_simp [ne_of_gt hden]
+    ring
+  have hyn : eNorm (y - z) = eNorm (z - y) := by
+    simpa using eNorm_neg (z - y)
+  have hcontra : eNorm (z - y) - ρ / 2 < eNorm (z - y) := by
+    linarith [hρ0]
+  nlinarith [hdist, hnorm0, hyn]
+
+/-- 论文 (51) 收口：P(z) = y、y ∈ int(Ω)、z = −Jᵀe/γ + y ⟹ Jᵀe = 0 -/
+theorem proj_eq_y_implies_JTe_zero {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (J : Matrix (Fin m) (Fin n) ℝ) (γ : ℝ) (hγ : 0 < γ) (e : Vec m)
+    (y : Vec n) (hIntBall : ∃ ρ₀ > 0, ∀ y' : Vec n, eNorm (y' - y) ≤ ρ₀ → y' ∈ Ω)
+    (hPz : P (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) = y) :
+    (Jᵀ) *ᵥ e = 0 := by
+  have hz : vecDiv (-((Jᵀ) *ᵥ e)) γ + y = y :=
+    proj_eq_y_implies_z_eq_y P Ω hPdist y hIntBall (vecDiv (-((Jᵀ) *ᵥ e)) γ + y) hPz
+  have hdiv0 : vecDiv (-((Jᵀ) *ᵥ e)) γ = 0 := by
+    apply_fun (fun v : Vec n => v - y) at hz
+    simpa using hz
+  ext i
+  have hi := congrFun hdiv0 i
+  dsimp [vecDiv] at hi
+  have hnum : -((Jᵀ *ᵥ e) i) = 0 := by
+    exact (div_eq_zero_iff hγ.ne').mp hi
+  exact neg_eq_zero.mp hnum
+
+/-- Theorem 2 Step 1（论文 (42) 组装）：(41b) ẇ = (ṙ_d − JJᵀw)/γ 下，
+   x(t) = JJᵀw(t) − ṙ_d 指数收敛到 0，即 JJᵀw(t) → ṙ_d（t → ∞）。
+   前提：强单调 ⟨x, JJᵀx⟩ ≥ c‖x‖ₑ²（rank JJᵀ = m，c = λ_min(JJᵀ) > 0）。 -/
+theorem theorem2_step1 {m : ℕ} (JJt : Matrix (Fin m) (Fin m) ℝ) (rd : Vec m)
+    (w : ℝ → Vec m) (γ c : ℝ) (hγ : 0 < γ) (hc : 0 < c)
+    (hmono : ∀ x : Vec m, c * eNorm x ^ 2 ≤ inner ℝ x (JJt *ᵥ x))
+    (hflow : ∀ t, HasFDerivAt w (ContinuousLinearMap.toSpanSingleton ℝ
+      (vecDiv (rd - JJt *ᵥ (w t)) γ)) t) :
+    Tendsto (fun t => JJt *ᵥ (w t) - rd) atTop (𝓝 0) := by
+  let x : ℝ → Vec m := fun t => JJt *ᵥ (w t) - rd
+  let Vdot : Vec m → ℝ := fun xv => inner ℝ xv (JJt *ᵥ (vecDiv (-xv) γ))
+  have hxcomp : ∀ t, ∀ i : Fin m,
+      HasDerivAt (fun s => (x s) i) ((JJt *ᵥ (vecDiv (rd - JJt *ᵥ (w t)) γ)) i) t := by
+    intro t i
+    have hwj : ∀ j : Fin m, HasDerivAt (fun s => (w s) j)
+        ((vecDiv (rd - JJt *ᵥ (w t)) γ) j) t :=
+      coord_deriv_of_span w (vecDiv (rd - JJt *ᵥ (w t)) γ) t (hflow t)
+    have hterm : ∀ j : Fin m, HasDerivAt (fun s => JJt i j * (w s) j)
+        (JJt i j * (vecDiv (rd - JJt *ᵥ (w t)) γ) j) t := by
+      intro j
+      exact (hwj j).const_mul (JJt i j)
+    have hsum := HasDerivAt.sum (u := Finset.univ) (fun j hj => hterm j)
+    have hminus : HasDerivAt (fun s => (∑ j, JJt i j * (w s) j) - rd i)
+        (∑ j, JJt i j * (vecDiv (rd - JJt *ᵥ (w t)) γ) j) t := by
+      simpa using hsum.sub (hasDerivAt_const t (rd i))
+    convert hminus using 1 <;> try rfl
+    · funext s
+      simp [x, Matrix.mulVec]
+  have hVd : ∀ t, HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (x s) ^ 2) (Vdot (x t)) t := by
+    intro t
+    have hneg : rd - JJt *ᵥ (w t) = -(x t) := by
+      dsimp [x]
+      ext i
+      ring
+    have hed : JJt *ᵥ (vecDiv (rd - JJt *ᵥ (w t)) γ) = JJt *ᵥ (vecDiv (-(x t)) γ) := by
+      rw [hneg]
+    have hd := Vdot_deriv_comp x (JJt *ᵥ (vecDiv (-(x t)) γ)) t (by
+      intro i
+      simpa [hed] using hxcomp t i)
+    simpa [Vdot] using hd
+  have hVneg : ∀ t, Vdot (x t) ≤ -(2 * c / γ) * ((1 / 2) * eNorm (x t) ^ 2) := by
+    intro t
+    have ha := V1_dot_algebra JJt rd (w t) γ
+    have hdec := V1_decay JJt (x t) γ c hγ (hmono (x t))
+    have hneg : rd - JJt *ᵥ (w t) = -(x t) := by
+      dsimp [x]
+      ext i
+      ring
+    unfold Vdot
+    rw [show vecDiv (-(x t)) γ = vecDiv (rd - JJt *ᵥ (w t)) γ by rw [← hneg]]
+    rw [show x t = JJt *ᵥ (w t) - rd by rfl]
+    rw [ha]
+    rw [show JJt *ᵥ (w t) - rd = x t by rfl]
+    exact hdec
+  exact exp_convergence x 0 Vdot (2 * c / γ) (by positivity) hVd hVneg
+
+/-- Theorem 2（论文）：控制律 (41)（u = P(Jᵀ(r_d−r)/γ + Jᵀw)，ẇ = (ṙ_d − JJᵀw)/γ）下，
+   Step 1 证明 JJᵀw 指数收敛到 ṙ_d（theorem2_step1）；Step 2 在不变集
+   w = (JJᵀ)⁻¹ṙ_d 中，误差 e = r − r_d 全局收敛到 0（LaSalle）。
+   前提：J⁺ṙ_d ∈ int(Ω)（eNorm 球形式，任意集无需凸性）、J 行满秩。
+   此处验证 Step 2 的代数链（(46)-(51)）：V̇₂ = −γ⟨z−y, Pz−y⟩ ≤ 0、
+   V̇₂=0 ⟹ Pz=y ⟹ Jᵀe=0 ⟹ e=0，组装 LaSalle axiom。 -/
+theorem theorem2 {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (J : Matrix (Fin m) (Fin n) ℝ) (hJ : IsUnit (J * Jᵀ))
+    (γ : ℝ) (hγ : 0 < γ) (rdot : Vec m)
+    (hIntBall : ∃ ρ₀ > 0, ∀ y : Vec n, eNorm (y - rpinv J hJ *ᵥ rdot) ≤ ρ₀ → y ∈ Ω)
+    (e : ℝ → Vec m)
+    (hflow : ∀ t, HasFDerivAt e (ContinuousLinearMap.toSpanSingleton ℝ
+      (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ (e t))) γ + rpinv J hJ *ᵥ rdot) - rpinv J hJ *ᵥ rdot))) t) :
+    Tendsto e atTop (𝓝 0) := by
+  let y : Vec n := rpinv J hJ *ᵥ rdot
+  rcases hIntBall with ⟨ρ₀, hρ₀, hball⟩
+  have hy : y ∈ Ω := hball y (by simp)
+  let Vdot : Vec m → ℝ := fun x => inner ℝ x (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y))
+  have hneg : ∀ x : Vec m, Vdot x ≤ 0 := by
+    intro x
+    have hineq : eNorm (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y) ^ 2 ≤
+        2 * inner ℝ (vecDiv (-((Jᵀ) *ᵥ x)) γ) (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y) := by
+      exact proj_sq_ineq_at P Ω hPdist y hy (vecDiv (-((Jᵀ) *ᵥ x)) γ + y)
+    have hinner : inner ℝ x (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y)) =
+        -γ * inner ℝ (vecDiv (-((Jᵀ) *ᵥ x)) γ) (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y) :=
+      V2_dot_algebra P J y γ hγ x
+    have hzpos : 0 ≤ inner ℝ (vecDiv (-((Jᵀ) *ᵥ x)) γ) (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y) := by
+      have : 0 ≤ eNorm (P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) - y) ^ 2 := sq_nonneg _
+      nlinarith [hineq]
+    unfold Vdot
+    rw [hinner]
+    exact mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (le_of_lt hγ)) hzpos
+  have hinv : ∀ x : Vec m, Vdot x = 0 → x = 0 := by
+    intro x hx
+    have hPz : P (vecDiv (-((Jᵀ) *ᵥ x)) γ + y) = y := by
+      unfold Vdot at hx
+      exact V2dot_zero_implies_Pzero_at P Ω hPdist y hy J γ hγ x hx
+    have hJTe : (Jᵀ) *ᵥ x = 0 := proj_eq_y_implies_JTe_zero P Ω hPdist J γ hγ x y ⟨ρ₀, hρ₀, hball⟩ hPz
+    exact JTe_zero_implies_e_zero J hJ x hJTe
+  have hVd : ∀ t, HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (Vdot (e t)) t := by
+    intro t
+    have hd := Vdot_deriv e (J *ᵥ (P (vecDiv (-((Jᵀ) *ᵥ (e t))) γ + y) - y)) t (hflow t)
+    simpa [Vdot, y] using hd
+  exact lasalle_global_convergence e Vdot hVd hneg hinv

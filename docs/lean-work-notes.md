@@ -78,3 +78,15 @@
 - 新模块需在 `LeanVerify.lean` 加 `import`
 - 模块名 = 文件名（`lake build LeanVerify.QP_LVI_PNN` 而不是缩写）
 - 定理语句与计划不一致时必须报告（如 Q 对称假设）；doc-comment 公式编号（文档 (n)/论文 (n)）
+
+## 7. 工作包 B 完成记录（2026-08-04 第二轮）
+
+- **B4 收口**：`Vdot_deriv` 重构为两层——新增 `Vdot_deriv_comp`（逐分量 HasDerivAt 版）+ `coord_deriv_of_span`（HasFDerivAt ⟹ 分量导数），`Vdot_deriv` 变薄壳；Theorem 1 组装不变
+- **B5（Theorem 2）全部完成**：`V1_dot_algebra` 的 2 个遗留 sorry 消除（`Matrix.mulVec` 的线性性 `hmulneg` + `vec_inner_neg_right`；组装用 `hx` 定义回写）
+- 新增 6 个定理：`proj_sq_ineq_at`（(48) 平移投影不等式，y=0 特例即 (25)）、`V2_dot_algebra`（(46) 代数）、`V2dot_zero_implies_Pzero_at`（(50)）、`proj_eq_y_implies_z_eq_y`/`proj_eq_y_implies_JTe_zero`（(51) 平移不变集）、`theorem2_step1`（(42) Step 1 组装）、`theorem2`（Step 2 组装）
+- **`exp_convergence` axiom 修正**：原陈述要求 V̇ = −cV 精确等式；Gronwall 比较引理实际只需 V̇ ≤ −cV（不等式），axiom 改为接收 `Vdot` 函数 + `hdec` 不等式，`theorem2_step1` 才能用（Vdot(x) = −(1/γ)⟨x,JJᵀx⟩ 只满足不等式上界）
+- **环境实证（本轮新增）**：
+  - `Matrix.mulVec` 对负数线性：`ext i; simp [Matrix.mulVec, Finset.sum_neg_distrib]` 直证，无需查谱定理
+  - 平移不变集论证（Theorem 2 (51)）比 Theorem 1 简单：取 y' = y + ρ(z−y)/(2‖z−y‖) 得 ‖y'−z‖ = ‖z−y‖ − ρ/2 直接矛盾，无需二次型下界（`proj_zero_ineq` 那类）
+  - `apply_fun (fun v => v - y) at hz` 用于从 z + y = y 剥离出 z = 0（平移去消）
+- 数学发现：**论文 (46) 丢 γ 因子**（应为 −γ⟨z−y,Pz−y⟩，验证按正确版）；`V1_decay` 的 `nlinarith [hmono, hζ]` 一次过（nlinarith 对含 (1/ζ) 的线性不等式可处理）
