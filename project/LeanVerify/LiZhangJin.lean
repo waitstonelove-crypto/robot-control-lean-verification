@@ -1,7 +1,8 @@
 import LeanVerify.Core
 import LeanVerify.QP_LVI_PNN
 
-open Matrix
+open Matrix Filter
+open scoped Topology
 
 /-! # Li-Zhang-Jin (2017) 稳定性定理验证
 控制律 (19) u = P_Ω(Jᵀ(r_d−r)/γ) 的 Theorem 1 与控制律 (41) 速度补偿的 Theorem 2。
@@ -190,5 +191,137 @@ theorem theorem1_invariant_set {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec 
     (hPz : P (vecDiv (-((Jᵀ) *ᵥ e)) γ) = 0) :
     e = 0 := by
   exact JTe_zero_implies_e_zero J hJ e (proj_zero_implies_JTe_zero P Ω hPdist J γ hγ e hIntBall hPz)
+
+/-- 论文 (28)(29)(30)：V̇ = ⟨e, JP(−Jᵀe/γ)⟩ = 0 ⟹ P(−Jᵀe/γ) = 0
+   （从 (25) ‖P z‖² ≤ 2⟨P z, z⟩ 与 ⟨e, JPz⟩ = −γ⟨z, Pz⟩） -/
+theorem Vdot_zero_implies_Pzero {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (h0 : (0 : Vec n) ∈ Ω)
+    (J : Matrix (Fin m) (Fin n) ℝ) (γ : ℝ) (hγ : 0 < γ) (e : Vec m)
+    (hV : inner ℝ e (J *ᵥ P (vecDiv (-((Jᵀ) *ᵥ e)) γ)) = 0) :
+    P (vecDiv (-((Jᵀ) *ᵥ e)) γ) = 0 := by
+  let z : Vec n := vecDiv (-((Jᵀ) *ᵥ e)) γ
+  have hineq : eNorm (P z) ^ 2 ≤ 2 * inner ℝ (P z) z := proj_sq_ineq P Ω hPdist h0 z
+  have hadj : inner ℝ e (J *ᵥ P z) = -γ * inner ℝ (P z) z := by
+    have h1 : inner ℝ e (J *ᵥ P z) = inner ℝ ((Jᵀ) *ᵥ e) (P z) := by
+      rw [vec_inner_symm e (J *ᵥ P z)]
+      rw [vec_mulVec_adjoint J (P z) e]
+      rw [vec_inner_symm (P z) ((Jᵀ) *ᵥ e)]
+    have hz : (Jᵀ) *ᵥ e = -(γ • z) := by
+      ext i
+      change (Jᵀ *ᵥ e) i = -(γ * (z i))
+      dsimp [z, vecDiv]
+      field_simp [hγ.ne']
+    rw [h1, hz]
+    rw [vec_inner_neg_left, vec_inner_smul_left]
+    rw [vec_inner_symm z (P z)]
+    ring
+  have hzz : inner ℝ (P z) z = 0 := by
+    have hVz : inner ℝ e (J *ᵥ P z) = 0 := by simpa [z] using hV
+    rw [hadj] at hVz
+    nlinarith [hVz, hγ]
+  have hsq : eNorm (P z) ^ 2 ≤ 0 := by nlinarith [hineq, hzz]
+  have hPz0 : eNorm (P z) = 0 := sq_eq_zero_iff.mp (le_antisymm hsq (sq_nonneg _))
+  exact (eNorm_eq_zero_iff (P z)).mp hPz0
+
+/--
+LaSalle 不变集原理（收敛收口，axiom）：
+   若 V(t) = ‖e(t)‖²/2 沿误差动态满足 V̇ ≤ 0（hneg），且 V̇ = 0 蕴含 e = 0（hinv，
+   即最大不变集仅含 {0}），则 e(t) → 0（t → ∞）。
+   引用：LaSalle (1960) "Some extensions of Lyapunov's second method" / Khalil, Nonlinear Systems。
+   说明：定理本体为动力系统理论标准结果，本项目严格验证其前提
+   （hneg：B1 的 Vdot_nonpos；hinv：B2-B3 的不变集分析）与应用链。 -/
+axiom lasalle_global_convergence {m : ℕ} (e : ℝ → Vec m)
+    (Vdot : Vec m → ℝ)
+    (hVdot : ∀ t, HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (Vdot (e t)) t)
+    (hneg : ∀ x : Vec m, Vdot x ≤ 0)
+    (hinv : ∀ x : Vec m, Vdot x = 0 → x = 0) :
+    Tendsto e atTop (𝓝 0)
+
+/-- V = ‖e‖²/2 沿轨迹的导数：d/dt (½‖e(t)‖²) = ⟨e(t), ė(t)⟩（分量展开 + 链式法则） -/
+theorem Vdot_deriv {m : ℕ} (e : ℝ → Vec m) (ed : Vec m) (t : ℝ)
+    (hflow : HasFDerivAt e (ContinuousLinearMap.toSpanSingleton ℝ ed) t) :
+    HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (inner ℝ (e t) ed) t := by
+  have hcomp : ∀ i : Fin m, HasDerivAt (fun s : ℝ => (e s) i) (ed i) t := by
+    intro i
+    let π : Vec m →L[ℝ] ℝ := ContinuousLinearMap.proj i
+    have hgdiff : DifferentiableAt ℝ (fun v : Vec m => π v) (e t) := π.differentiableAt
+    have hediff : DifferentiableAt ℝ e t := hflow.differentiableAt
+    have hfc := fderiv_comp (g := fun v : Vec m => π v) (f := e) (x := t) hgdiff hediff
+    have hπ : fderiv ℝ (fun v : Vec m => π v) (e t) = π := π.fderiv
+    have hfe : fderiv ℝ e t = ContinuousLinearMap.toSpanSingleton ℝ ed := hflow.fderiv
+    have hcoord : fderiv ℝ (fun s : ℝ => (e s) i) t = ContinuousLinearMap.toSpanSingleton ℝ (ed i) := by
+      calc
+        fderiv ℝ (fun s : ℝ => (e s) i) t = fderiv ℝ (fun s : ℝ => π (e s)) t := by rfl
+        _ = (fderiv ℝ (fun v : Vec m => π v) (e t)).comp (fderiv ℝ e t) := hfc
+        _ = π.comp (ContinuousLinearMap.toSpanSingleton ℝ ed) := by rw [hπ, hfe]
+        _ = ContinuousLinearMap.toSpanSingleton ℝ (ed i) := by
+          ext u
+          simp [ContinuousLinearMap.comp_apply, ContinuousLinearMap.toSpanSingleton_apply, π]
+    have hdiff : DifferentiableAt ℝ (fun s : ℝ => (e s) i) t := by
+      fun_prop
+    have hder : deriv (fun s : ℝ => (e s) i) t = ed i := by
+      rw [show deriv (fun s : ℝ => (e s) i) t = (fderiv ℝ (fun s : ℝ => (e s) i) t) 1 by
+        rfl]
+      rw [hcoord]
+      simp [ContinuousLinearMap.toSpanSingleton_apply]
+    simpa [hder] using hdiff.hasDerivAt
+  have hmul : ∀ i : Fin m, HasDerivAt (fun s : ℝ => (e s) i * (e s) i) (2 * (e t) i * ed i) t := by
+    intro i
+    have hm := (hcomp i).mul (hcomp i)
+    have hval : ed i * (e t) i + (e t) i * ed i = 2 * (e t) i * ed i := by ring
+    convert hm using 1 <;> try rfl
+    exact hval.symm
+  have hsum : HasDerivAt (fun s : ℝ => ∑ i : Fin m, (e s) i * (e s) i)
+      (∑ i : Fin m, 2 * (e t) i * ed i) t := by
+    convert (HasDerivAt.sum (u := Finset.univ) (fun i hi => hmul i)) using 1 <;> try rfl
+    · funext s
+      rw [Finset.sum_apply]
+  have hhalf := hsum.const_mul (1 / 2)
+  have hsq : ∀ s : ℝ, eNorm (e s) ^ 2 = ∑ i : Fin m, (e s) i * (e s) i := by
+    intro s
+    rw [eNorm_sq_eq_inner, inner_vec_eq_sum]
+  have hval : (1 / 2) * ∑ i : Fin m, 2 * (e t) i * ed i = inner ℝ (e t) ed := by
+    rw [inner_vec_eq_sum]
+    rw [Finset.mul_sum]
+    apply Finset.sum_congr rfl
+    intro i hi
+    ring
+  convert hhalf using 1 <;> try rfl
+  · funext s
+    rw [hsq]
+  · exact hval.symm
+
+/-- Theorem 1（论文）：控制律 (19) u = P_Ω(Jᵀ(r_d−r)/γ) 下，误差 e = r − r_d 全局收敛到 0。
+   前提：0 ∈ int(Ω)（eNorm 球形式，任意集无需凸性）、J 行满秩。
+   组装：B1（V̇ ≤ 0）+ V̇=0⟹e=0（B2-B3）+ LaSalle axiom。 -/
+theorem theorem1 {n m : ℕ} (P : Vec n → Vec n) (Ω : Set (Vec n))
+    (hPdist : ∀ z y : Vec n, y ∈ Ω → eNorm (P z - z) ≤ eNorm (y - z))
+    (J : Matrix (Fin m) (Fin n) ℝ) (hJ : IsUnit (J * Jᵀ))
+    (γ : ℝ) (hγ : 0 < γ)
+    (hIntBall : ∃ ρ₀ > 0, ∀ y : Vec n, eNorm y ≤ ρ₀ → y ∈ Ω)
+    (e : ℝ → Vec m)
+    (hflow : ∀ t, HasFDerivAt e (ContinuousLinearMap.toSpanSingleton ℝ
+      (J *ᵥ P (vecDiv (-((Jᵀ) *ᵥ (e t))) γ))) t) :
+    Tendsto e atTop (𝓝 0) := by
+  rcases hIntBall with ⟨ρ₀, hρ₀, hball⟩
+  have h0 : (0 : Vec n) ∈ Ω := hball 0 (by simp [eNorm]; linarith)
+  let Vdot : Vec m → ℝ := fun x => inner ℝ x (J *ᵥ P (vecDiv (-((Jᵀ) *ᵥ x)) γ))
+  have hneg : ∀ x : Vec m, Vdot x ≤ 0 := by
+    intro x
+    unfold Vdot
+    exact Vdot_nonpos P Ω hPdist h0 J γ hγ x
+  have hinv : ∀ x : Vec m, Vdot x = 0 → x = 0 := by
+    intro x hx
+    have hPz : P (vecDiv (-((Jᵀ) *ᵥ x)) γ) = 0 := by
+      unfold Vdot at hx
+      exact Vdot_zero_implies_Pzero P Ω hPdist h0 J γ hγ x hx
+    have hJTe : (Jᵀ) *ᵥ x = 0 := proj_zero_implies_JTe_zero P Ω hPdist J γ hγ x ⟨ρ₀, hρ₀, hball⟩ hPz
+    exact JTe_zero_implies_e_zero J hJ x hJTe
+  have hVd : ∀ t, HasDerivAt (fun s : ℝ => (1 / 2) * eNorm (e s) ^ 2) (Vdot (e t)) t := by
+    intro t
+    have hd := Vdot_deriv e (J *ᵥ P (vecDiv (-((Jᵀ) *ᵥ (e t))) γ)) t (hflow t)
+    simpa [Vdot] using hd
+  exact lasalle_global_convergence e Vdot hVd hneg hinv
 
 end LiZhangJin
