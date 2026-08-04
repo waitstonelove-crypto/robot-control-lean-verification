@@ -11,20 +11,24 @@
 3. **源论文 Ma et al. TSMC 2023**：(7)–(9) 限位统一化、(13)–(17) ASOA、(18)–(26) VAM Theorem 1、(29)–(36) 拉格朗日/RNN/单调性（`Paper.lean`）
 4. 求解器数学核心：QP 凸性/一阶最优性、LVI、不动点等价、连续/离散投影神经网络（`QP_LVI_PNN.lean`、`ConvergenceAxioms.lean`）
 5. 避障几何与 Li 函数（`Obstacle.lean`）
+6. **源论文 Li, Zhang & Jin (2017) TNNLS**：控制律 (19)/Theorem 1 与速度补偿控制律 (41)/Theorem 2 的稳定性定理（`LiZhangJin.lean`）——投影最小距离性质链、Lyapunov 导数、不变集分析（0 ∈ int(Ω) 与平移版 J⁺ṙ_d ∈ int(Ω)）、LaSalle/Gronwall 组装
 
 完整公式↔定理对照见 `formula-mapping.md`。
 
 ## 2. 验证状态
 
 - 全部 `lake build` 通过（8663 jobs），**零 `sorry`/`admit`**
-- 全库 **唯一 axiom**：`ConvergenceAxioms.pnn_global_exponential_convergence`（见 §3）
+- 全库 **axiom 仅 3 个**（均为动力系统定理本体，见 §3）：`pnn_global_exponential_convergence`（Gao 2003）、`lasalle_global_convergence`（LaSalle 1960 / Khalil）、`exp_convergence`（Gronwall / Khalil）
 - 定理 doc-comment 均标注来源（文档 (n)/论文 (n)）与验证假设
+- **工作包 B 已全部完成**（2026-08-04 第二轮）：Theorem 1（控制律 (19)）与 Theorem 2（控制律 (41)）的验证链（含 6 个新定理 `proj_sq_ineq_at`/`V2_dot_algebra`/`V2dot_zero_implies_Pzero_at`/`proj_eq_y_implies_z_eq_y`/`theorem2_step1`/`theorem2`）已合并，`V1_dot_algebra` 的 2 个遗留 `sorry` 已消除
 
 ## 3. 假设清单（axiom）
 
 | 假设 | 内容 | 引用来源 | 理由 |
 |---|---|---|---|
 | `pnn_global_exponential_convergence` | 投影动力系统 ẏ = γ(P_Ω(y−F(y))−y) 在 F 强单调（⟨x−y, Fx−Fy⟩ ≥ η‖x−y‖ₑ²）时全局指数收敛（eNorm 范数） | 论文 Lemma 1，引用 Gao (2003) IEEE TNN 14(2):426–431；Friesz et al. (1999) OR 42(6) | 定理本体需 Hilbert 空间单调算子 + 指数稳定性理论，超出本项目范围；**应用链全部机器验证**（F 构造、单调性、不动点等价、框投影实例化） |
+| `lasalle_global_convergence` | V = ½‖e‖² 满足 V̇ = Vdot(e(t)) ≤ 0 且 V̇=0 ⟹ e=0 时，e(t) → 0（t → ∞） | LaSalle (1960) "Some extensions of Lyapunov's second method"；Khalil, Nonlinear Systems | 动力系统理论标准结果；**Theorem 1/2 的前提链全部机器验证**（`Vdot_nonpos`/`Vdot_zero_implies_Pzero`/`proj_zero_implies_JTe_zero`/`JTe_zero_implies_e_zero` 与平移版 (46)–(51)） |
+| `exp_convergence` | V = ½‖x−x*‖² 满足 V̇ = Vdot(x(t)) ≤ −cV（c > 0）时，x(t) → x*（指数衰减） | Gronwall 不等式 / 比较引理（Khalil, Nonlinear Systems 定理 3.4） | 经典微分方程比较定理；**Theorem 2 Step 1 应用链全部机器验证**（`V1_dot_algebra`/`V1_decay`/`Vdot_deriv_comp`） |
 
 ## 4. 已知缺口（未验证项）
 
@@ -39,6 +43,8 @@
 | 文档 (36) 避障雅可比的链式法则梯度 | 依赖范数梯度 FDeriv 引理（自定义内积实例下受限） | 未形式化（记录） |
 | 文档 (12)–(15) 连杆运动学、论文 GJK 算法本体 | 抽象层决定：运动学实体作符号；GJK 为迭代算法 | 明确不在验证范围 |
 | 二阶 ODE 显式解（文档 (B.4) 后半） | 超出代数层 | 代数闭合已证，解形式记录 |
+| LZJ 论文 (42) 的 λ_min(JJᵀ) > 0（rank JJᵀ = m ⟹ 正定） | 谱理论（对称矩阵特征值） | 以强单调假设 hmono（⟨x, JJᵀx⟩ ≥ c‖x‖ₑ²）陈述，`theorem2_step1` 依赖该假设 |
+| LZJ 论文 "V̇₂ ≤ −(1/2)‖Pz−y‖²" 的投影平方下界 | (48) 配平方给出 ‖Pz−y‖² ≤ 2⟨z−y, Pz−y⟩，但 (46) 的 γ 因子丢失使论文 (49) 定量形式不精确 | `theorem2` 只断言 V̇₂ ≤ 0（LaSalle 需要），定量衰减率不验证 |
 
 ## 5. 验证中发现的数学问题（Lean 抓错实绩）
 
@@ -47,6 +53,8 @@
 3. 文档 (39) Li 函数梯度符号与常规链式法则相反（勘误候选，待与 ALMM 原文比对）
 4. 论文 (35) ∇F 的 −J_E 与 (34) 不一致（以 (34) 为准验证）
 5. 文档 (31) β 条件为谱范数陈述，l∞ 范数下不成立（验证表述已修正）
+6. **论文 (46) 丢失 γ 因子**：V̇₂ = eᵀJ(Pz−y) 应为 −γ⟨z−y, Pz−y⟩（伴随 + z = −Jᵀe/γ + y），论文原文写作 −⟨z−y, Pz−y⟩；γ > 0 不影响 V̇₂ ≤ 0 的结论，`V2_dot_algebra` 按正确版验证（Lean 抓错实绩）
+7. **Theorem 2 的不变集论证需平移版 int(Ω)**：Theorem 1 用 0 ∈ int(Ω) 沿 −Jᵀe 方向取小步；Theorem 2 用 J⁺ṙ_d ∈ int(Ω)，沿 z−y 方向取小步 y' = y + ρ(z−y)/(2‖z−y‖) 得 ‖y'−z‖ = ‖z−y‖ − ρ/2 直接矛盾（`proj_eq_y_implies_z_eq_y`），不需 proj_zero_ineq 的二次型下界
 
 ## 6. 记号约定
 

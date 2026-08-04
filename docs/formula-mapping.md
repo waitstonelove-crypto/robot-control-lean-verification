@@ -79,7 +79,35 @@
 | (34)(35)(36) 单调性 | ∇F+∇Fᵀ = diag(2I,0,0) ⪰ 0 | `F_monotone`, `F_monotone_nonneg` | ✅（注：论文 (35) 的 −J_E 与 (34) 不符，以 (34) 为准） |
 | Theorem 2 | RNN 收敛到 QP 最优 | `paper_theorem2_assembly` + 📌 收敛 axiom + hKKTopt 假设 | ⚠ 骨架（KKT⟹最优为假设） |
 
-## 4. 核对发现与勘误记录
+## 4. Li, Zhang & Jin (2017) TNNLS 稳定性定理（工作包 B）
+
+来源：Li, Zhang & Jin, "Kinematic Control of Redundant Manipulators Using Neural Networks", IEEE TNNLS 28(10), 2017（`LiZhangJin.lean`）。核心贡献点：投影集 Ω 任意（非凸），无需凸性。
+
+| 论文公式 | 内容摘要 | Lean 定理 | 状态 |
+|---|---|---|---|
+| 控制律 (19) | u = P_Ω(Jᵀ(r_d−r)/γ) | —（控制律本体，嵌入 theorem1 前提） | ⚠ 前提层 |
+| 误差动态 (21) | ė = JP_Ω(−Jᵀe/γ) | —（嵌入 theorem1 的 hflow） | ⚠ 前提层 |
+| (23) 投影最小距离 | y ∈ Ω ⟹ ‖Pz−z‖ₑ ≤ ‖y−z‖ₑ | `proj_dist_le_norm`（hPdist 假设）、0 ∈ Ω 特例 | ✅（hPdist 为公理化假设） |
+| (25) 投影平方不等式 | 0 ∈ Ω ⟹ ‖Pz‖ₑ² ≤ 2⟨Pz, z⟩ | `proj_sq_ineq` | ✅ |
+| (26) V̇ ≤ 0 | V = ½‖e‖²，V̇ = ⟨e, JP(−Jᵀe/γ)⟩ ≤ 0 | `Vdot_nonpos` | ✅ |
+| (28)(29) V̇=0 ⟹ Pz=0 | ‖Pz‖² ≤ 2⟨Pz,z⟩ 与 ⟨e,JPz⟩ = −γ⟨z,Pz⟩ | `Vdot_zero_implies_Pzero` | ✅ |
+| (30)–(33) 投影零点引理 | Pz = 0 时 ∀y ∈ Ω, ‖y‖² + (2/γ)⟨Jᵀe,y⟩ ≥ 0 | `proj_zero_ineq` | ✅ |
+| (34)–(36) 0 ∈ int(Ω) ⟹ Jᵀe = 0 | 沿 −Jᵀe 取小步 y ∈ Ω 得 ρ ≥ 4‖Jᵀe‖/γ，取 ρ = min(ρ₀/2, c/2) 矛盾 | `proj_zero_implies_JTe_zero` | ✅ |
+| (37) 行满秩 ⟹ e = 0 | Jᵀe = 0 且 JJᵀ 可逆 ⟹ e = 0 | `JTe_zero_implies_e_zero` | ✅ |
+| Theorem 1 | 控制律 (19)、0 ∈ int(Ω)、J 行满秩 ⟹ e → 0 | `theorem1`（Vdot_deriv + LaSalle axiom 组装） | ✅（LaSalle 本体为 📌，前提链全机器验证） |
+| (40) costate 动态 | ẇ = (ṙ_d − JJᵀw)/γ，v = Jᵀw | —（嵌入 theorem2_step1 的 hflow） | ⚠ 前提层 |
+| (41) 控制律 | u = P(Jᵀ(r_d−r)/γ + Jᵀw) | —（嵌入 theorem2 的 hflow） | ⚠ 前提层 |
+| (42) V₁ 衰减代数 | V̇₁ = −(1/γ)⟨x, JJᵀx⟩，x = JJᵀw − ṙ_d | `V1_dot_algebra`, `V1_decay`（强单调 c ⟹ ≤ −(2c/γ)V₁） | ✅ |
+| Theorem 2 Step 1 | JJᵀw 指数收敛到 ṙ_d | `theorem2_step1`（Vdot_deriv_comp + exp_convergence axiom） | ✅（Gronwall 本体为 📌） |
+| (43) 不变集控制律 | w = (JJᵀ)⁻¹ṙ_d ⟹ u = P(Jᵀ(r_d−r)/γ + J⁺ṙ_d) | —（J⁺ = rpinv 已在 Core 验证；嵌入 theorem2 的 hflow） | ⚠ 前提层 |
+| (46) V₂ 代数 | z = −Jᵀe/γ + y ⟹ ⟨e, J(Pz−y)⟩ = −γ⟨z−y, Pz−y⟩ | `V2_dot_algebra`（注：论文原文丢失 γ 因子，见 §5） | ✅ |
+| (48) 平移投影不等式 | y ∈ Ω ⟹ ‖Pz−y‖ₑ² ≤ 2⟨z−y, Pz−y⟩ | `proj_sq_ineq_at` | ✅ |
+| (49) V̇₂ ≤ 0 | V̇₂ = −γ⟨z−y, Pz−y⟩ ≤ 0 | 组装在 `theorem2` 的 hneg | ✅ |
+| (50) V̇₂=0 ⟹ Pz=y | 从 (48) 与 (46) | `V2dot_zero_implies_Pzero_at` | ✅ |
+| (51) y ∈ int(Ω) ⟹ Jᵀe = 0 | 沿 z−y 方向取小步 y' ∈ Ω 得 ‖y'−z‖ < ‖y−z‖ 矛盾（平移版不变集） | `proj_eq_y_implies_z_eq_y`, `proj_eq_y_implies_JTe_zero` | ✅ |
+| Theorem 2 | 控制律 (41)、J⁺ṙ_d ∈ int(Ω)、J 行满秩 ⟹ e → 0 | `theorem2`（LaSalle axiom 组装） | ✅（LaSalle/Gronwall 本体为 📌，前提链全机器验证） |
+
+## 5. 核对发现与勘误记录
 
 1. **文档 ≠ 论文转写**：文档 (3)–(9)、(16)–(19)、(20)–(34)、(35)–(38)、(39) 与论文对应公式不同源（详见 `lean-work-notes.md` §1 与设计文档 §3）
 2. **文档 (19) `piecewiseGrad_endpoints`** 需前提 `θl < θu`（无反例为假），已补
