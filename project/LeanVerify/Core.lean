@@ -422,3 +422,21 @@ theorem rpinv_min_norm {m n : ℕ} (J : Matrix (Fin m) (Fin n) ℝ) (h : IsUnit 
     nlinarith [sq_nonneg (eNorm b)]
   have habs : |eNorm a| ≤ |eNorm x| := sq_le_sq.mp hsqle
   simpa [abs_of_nonneg (eNorm_nonneg a), abs_of_nonneg (eNorm_nonneg x)] using habs
+
+/-- 通用恒等式：‖X − B‖ₑ² = ‖X‖ₑ² − 2⟨X,B⟩ + ‖B‖ₑ² —— B 包（Li-Zhang-Jin 稳定性证明）反复使用 -/
+theorem eNorm_sub_sq {n : ℕ} (X B : Vec n) :
+    eNorm (X - B) ^ 2 = eNorm X ^ 2 - 2 * inner ℝ X B + eNorm B ^ 2 := by
+  rw [eNorm_sq_eq_inner, eNorm_sq_eq_inner, eNorm_sq_eq_inner]
+  rw [vec_inner_sub_left]
+  rw [vec_inner_sub_right]
+  rw [vec_inner_sub_right]
+  rw [vec_inner_symm B X]
+  ring
+
+/-- 范数对负号不变：‖−x‖ₑ = ‖x‖ₑ -/
+theorem eNorm_neg {n : ℕ} (x : Vec n) : eNorm (-x) = eNorm x := by
+  unfold eNorm
+  congr 1
+  apply Finset.sum_congr rfl
+  intro i hi
+  simp
