@@ -440,3 +440,27 @@ theorem eNorm_neg {n : ℕ} (x : Vec n) : eNorm (-x) = eNorm x := by
   apply Finset.sum_congr rfl
   intro i hi
   simp
+
+/-- 非负量平方单调：0 ≤ a ∧ 0 ≤ b ∧ a ≤ b ⟹ a² ≤ b² -/
+theorem sq_le_sq_of_nonneg {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a ≤ b) : a ^ 2 ≤ b ^ 2 := by
+  nlinarith [sq_nonneg (b - a), hab]
+
+/-- 范数线性：‖a·x‖ₑ = |a|·‖x‖ₑ -/
+theorem eNorm_smul {n : ℕ} (a : ℝ) (x : Vec n) : eNorm (a • x) = |a| * eNorm x := by
+  unfold eNorm
+  calc
+    Real.sqrt (∑ i, (a • x) i ^ 2) = Real.sqrt (a ^ 2 * ∑ i, x i ^ 2) := by
+      congr 1
+      calc
+        ∑ i, (a • x) i ^ 2 = ∑ i, (a * x i) ^ 2 := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          simp
+        _ = ∑ i, a ^ 2 * x i ^ 2 := by
+          apply Finset.sum_congr rfl
+          intro i hi
+          ring
+        _ = a ^ 2 * ∑ i, x i ^ 2 := by rw [Finset.mul_sum]
+    _ = Real.sqrt (a ^ 2) * Real.sqrt (∑ i, x i ^ 2) := by
+      rw [Real.sqrt_mul (sq_nonneg a)]
+    _ = |a| * Real.sqrt (∑ i, x i ^ 2) := by rw [Real.sqrt_sq_eq_abs]
